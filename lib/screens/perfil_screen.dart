@@ -292,28 +292,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 icon: Icons.workspace_premium_outlined,
               ),
 
-              const SizedBox(height: 32),
-
-              // ── Botão salvar ─────────────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _salvando ? null : _salvar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: _salvando
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save_outlined),
-                  label: Text(
-                    _salvando ? 'Salvando...' : 'Salvar Perfil',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),

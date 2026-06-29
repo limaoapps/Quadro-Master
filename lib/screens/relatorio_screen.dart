@@ -1083,7 +1083,7 @@ class RelatorioScreen extends StatelessWidget {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Distribuição de cargas — tabela + donut chart simulado
+  // Distribuição de cargas — tabela clara sem LayoutBuilder
   // ──────────────────────────────────────────────────────────────────────────
   pw.Widget _pdfDistribuicaoCargas(ResultadoProjeto r) {
     return pw.Container(
@@ -1091,60 +1091,79 @@ class RelatorioScreen extends StatelessWidget {
       decoration: pw.BoxDecoration(
         color: _grey50,
         borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: const PdfColor(0.85, 0.85, 0.85), width: 0.5),
+        border: pw.Border(left: const pw.BorderSide(color: _orange, width: 3)),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('Distribuição por Categoria',
-            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
+          pw.Row(children: [
+            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: _orange, shape: pw.BoxShape.circle)),
+            pw.SizedBox(width: 5),
+            pw.Text('Distribuição por Categoria',
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
+          ]),
           pw.SizedBox(height: 6),
           if (r.distribuicaoCategorias.isEmpty)
             pw.Text('Sem dados', style: const pw.TextStyle(fontSize: 7, color: _grey600))
-          else ...[
-            // Tabela de distribuição
-            ...r.distribuicaoCategorias.take(6).map((cat) {
+          else ...[         
+            // Cabeçalho da tabela
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+              decoration: const pw.BoxDecoration(color: _navy),
+              child: pw.Row(children: [
+                pw.Expanded(child: pw.Text('Categoria',
+                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white))),
+                pw.SizedBox(width: 35, child: pw.Text('kW',
+                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
+                  textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 35, child: pw.Text('%',
+                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
+                  textAlign: pw.TextAlign.right)),
+              ]),
+            ),
+            ...r.distribuicaoCategorias.take(6).toList().asMap().entries.map((e) {
+              final cat = e.value;
+              final isOdd = e.key.isOdd;
               final PdfColor barCor;
               if (cat.percentualTotal >= 50) { barCor = _orange; }
               else if (cat.percentualTotal >= 20) { barCor = _navy; }
               else { barCor = _green; }
-              final fraction = (cat.percentualTotal / 100).clamp(0.0, 1.0);
-              return pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 4),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Row(children: [
-                      pw.Expanded(child: pw.Text(cat.nome,
-                        style: const pw.TextStyle(fontSize: 6.5, color: _grey600))),
-                      pw.Text('${cat.percentualTotal.toStringAsFixed(1)}%',
-                        style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: barCor)),
-                    ]),
-                    pw.SizedBox(height: 2),
-                    // Barra de progresso sem FractionallySizedBox (não existe no pdf package)
-                    pw.LayoutBuilder(builder: (ctx, constraints) {
-                      final maxW = constraints?.maxWidth ?? 100.0;
-                      final barW = maxW * fraction;
-                      return pw.Stack(children: [
-                        pw.Container(height: 5, width: maxW,
-                          decoration: pw.BoxDecoration(
-                            color: const PdfColor(0.9, 0.9, 0.9),
-                            borderRadius: pw.BorderRadius.circular(2))),
-                        pw.Container(height: 5, width: barW,
-                          decoration: pw.BoxDecoration(
-                            color: barCor, borderRadius: pw.BorderRadius.circular(2))),
-                      ]);
-                    }),
-                  ],
+              return pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                decoration: pw.BoxDecoration(
+                  color: isOdd ? const PdfColor(0.94, 0.94, 0.94) : _white,
                 ),
+                child: pw.Row(children: [
+                  pw.Expanded(child: pw.Text(cat.nome,
+                    style: const pw.TextStyle(fontSize: 7, color: _black))),
+                  pw.SizedBox(width: 35, child: pw.Text(
+                    '${(cat.percentualTotal * r.totalPotenciaAtiva / 100).toStringAsFixed(2)}',
+                    style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black),
+                    textAlign: pw.TextAlign.right)),
+                  pw.SizedBox(width: 35, child: pw.Text(
+                    '${cat.percentualTotal.toStringAsFixed(1)}%',
+                    style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: barCor),
+                    textAlign: pw.TextAlign.right)),
+                ]),
               );
             }),
-            pw.SizedBox(height: 4),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('Total Instalado:', style: const pw.TextStyle(fontSize: 7, color: _grey600)),
-              pw.Text('${(r.totalPotenciaAtiva).toStringAsFixed(2)} kW',
-                style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black)),
-            ]),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(top: pw.BorderSide(color: _orange, width: 0.8)),
+              ),
+              child: pw.Row(children: [
+                pw.Expanded(child: pw.Text('TOTAL',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy))),
+                pw.SizedBox(width: 35, child: pw.Text(
+                  r.totalPotenciaAtiva.toStringAsFixed(2),
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy),
+                  textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 35, child: pw.Text('100%',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy),
+                  textAlign: pw.TextAlign.right)),
+              ]),
+            ),
           ],
         ],
       ),
@@ -1152,9 +1171,10 @@ class RelatorioScreen extends StatelessWidget {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Balanceamento de fases — barras A/B/C + caixa de stats
+  // Balanceamento de fases — tabela A/B/C limpa sem LayoutBuilder
   // ──────────────────────────────────────────────────────────────────────────
   pw.Widget _pdfBalanceamentoFases(ResultadoProjeto r) {
+    // ignore: unused_local_variable
     final maxI = [r.correnteFaseA, r.correnteFaseB, r.correnteFaseC].reduce(max);
     final fases = [
       ('Fase A', r.correnteFaseA, const PdfColor(1, 0.2, 0.2)), // vermelho
@@ -1168,41 +1188,60 @@ class RelatorioScreen extends StatelessWidget {
       decoration: pw.BoxDecoration(
         color: _grey50,
         borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: const PdfColor(0.85, 0.85, 0.85), width: 0.5),
+        border: pw.Border(left: const pw.BorderSide(color: _navy, width: 3)),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('Balanceamento das Fases',
-            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
-          pw.SizedBox(height: 8),
-          // Barras de fase
-          ...fases.map((f) {
-            final fraction = maxI > 0 ? (f.$2 / maxI).clamp(0.0, 1.0) : 0.0;
-            return pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 5),
+          pw.Row(children: [
+            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: _navy, shape: pw.BoxShape.circle)),
+            pw.SizedBox(width: 5),
+            pw.Text('Balanceamento das Fases',
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
+          ]),
+          pw.SizedBox(height: 6),
+          // Tabela de fases - sem LayoutBuilder
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+            decoration: const pw.BoxDecoration(color: _navy),
+            child: pw.Row(children: [
+              pw.SizedBox(width: 45, child: pw.Text('Fase',
+                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white))),
+              pw.Expanded(child: pw.Text('Corrente',
+                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
+                textAlign: pw.TextAlign.right)),
+              pw.SizedBox(width: 40, child: pw.Text('% Máx.',
+                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
+                textAlign: pw.TextAlign.right)),
+            ]),
+          ),
+          ...fases.asMap().entries.map((e) {
+            final f = e.value;
+            final pct = maxI > 0 ? (f.$2 / maxI * 100).clamp(0.0, 100.0) : 0.0;
+            final isOdd = e.key.isOdd;
+            return pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+              decoration: pw.BoxDecoration(
+                color: isOdd ? const PdfColor(0.94, 0.94, 0.94) : _white,
+              ),
               child: pw.Row(children: [
-                pw.SizedBox(width: 36, child: pw.Text(f.$1, style: const pw.TextStyle(fontSize: 7, color: _grey600))),
-                pw.Expanded(child: pw.LayoutBuilder(builder: (ctx, constraints) {
-                  final maxW = constraints?.maxWidth ?? 100.0;
-                  final barW = maxW * fraction;
-                  return pw.Stack(children: [
-                    pw.Container(height: 10, width: maxW,
-                      decoration: pw.BoxDecoration(
-                        color: const PdfColor(0.9, 0.9, 0.9),
-                        borderRadius: pw.BorderRadius.circular(3))),
-                    pw.Container(height: 10, width: barW,
-                      decoration: pw.BoxDecoration(
-                        color: f.$3, borderRadius: pw.BorderRadius.circular(3))),
-                  ]);
-                })),
-                pw.SizedBox(width: 6),
-                pw.SizedBox(width: 38, child: pw.Text('${f.$2.toStringAsFixed(1)} A',
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black))),
+                pw.Container(
+                  width: 8, height: 8,
+                  decoration: pw.BoxDecoration(color: f.$3, shape: pw.BoxShape.circle),
+                ),
+                pw.SizedBox(width: 4),
+                pw.SizedBox(width: 33, child: pw.Text(f.$1,
+                  style: const pw.TextStyle(fontSize: 7, color: _black))),
+                pw.Expanded(child: pw.Text('${f.$2.toStringAsFixed(2)} A',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: f.$3),
+                  textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 40, child: pw.Text('${pct.toStringAsFixed(0)}%',
+                  style: const pw.TextStyle(fontSize: 7, color: _grey600),
+                  textAlign: pw.TextAlign.right)),
               ]),
             );
           }),
-          pw.SizedBox(height: 4),
+          pw.SizedBox(height: 5),
           // Box de stats
           pw.Container(
             padding: const pw.EdgeInsets.all(6),
@@ -1211,9 +1250,10 @@ class RelatorioScreen extends StatelessWidget {
                 desbalOk ? _green.red : _yellow.red,
                 desbalOk ? _green.green : _yellow.green,
                 desbalOk ? _green.blue : _yellow.blue,
-                0.1,
+                0.12,
               ),
               borderRadius: pw.BorderRadius.circular(3),
+              border: pw.Border.all(color: desbalOk ? _green : _yellow, width: 0.5),
             ),
             child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -1253,7 +1293,7 @@ class RelatorioScreen extends StatelessWidget {
         return [
           '${e.key + 1}',
           c.descricao,
-          _tipoShort(c.tipo),
+          _tipoShort(c.tipo, descricao: c.descricao, notas: c.notas),
           _ligacaoShort(c.ligacao),
           _faseStr(c.fase),
           c.potenciaAtiva.toStringAsFixed(0),
@@ -1515,7 +1555,7 @@ String _ligacaoShort(LigacaoCarga l) {
   }
 }
 
-String _tipoShort(TipoCarga t) {
+String _tipoShort(TipoCarga t, {String descricao = '', String notas = ''}) {
   switch (t) {
     case TipoCarga.tug: return 'TUG';
     case TipoCarga.tue: return 'TUE';
@@ -1523,7 +1563,17 @@ String _tipoShort(TipoCarga t) {
     case TipoCarga.arCondicionado: return 'A/C';
     case TipoCarga.resistencia: return 'Resist.';
     case TipoCarga.iluminacao: return 'Ilumin.';
-    case TipoCarga.generico: return 'Genérico';
+    // Para genérico: extrai o tipo especificado das notas [TIPO:xxx] se disponível
+    case TipoCarga.generico:
+      // Tenta extrair o tipo especificado no campo notas: "[TIPO:Compressor] ..."
+      final match = RegExp(r'\[TIPO:([^\]]+)\]').firstMatch(notas);
+      if (match != null) return match.group(1)!.trim();
+      // Fallback: usa as primeiras palavras da descrição
+      if (descricao.isNotEmpty && descricao != 'Carga Genérica') {
+        final parts = descricao.split(' ');
+        return parts.length > 1 ? parts.take(2).join(' ') : descricao;
+      }
+      return 'Outro';
   }
 }
 

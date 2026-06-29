@@ -14,16 +14,26 @@ class CargasScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final prov = context.watch<AppProvider>();
     final cargas = prov.projetoAtual?.cargas ?? [];
+    final ativas = cargas.where((c) => c.ativo).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: cargas.isEmpty
-          ? _buildEmpty(context)
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-              itemCount: cargas.length,
-              itemBuilder: (ctx, i) => _CargaCard(carga: cargas[i]),
-            ),
+      body: Column(
+        children: [
+          // ── Prévia de totais ──────────────────────────────────────
+          if (cargas.isNotEmpty) _buildPrevia(ativas),
+          // ── Lista de cargas ───────────────────────────────────────
+          Expanded(
+            child: cargas.isEmpty
+                ? _buildEmpty(context)
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
+                    itemCount: cargas.length,
+                    itemBuilder: (ctx, i) => _CargaCard(carga: cargas[i]),
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addCargaSheet(context),
         backgroundColor: AppColors.primary,
@@ -32,6 +42,75 @@ class CargasScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildPrevia(List<Carga> ativas) {
+    final potTotal = ativas.fold(0.0, (s, c) => s + c.potenciaAtiva) / 1000;
+    final iTotal   = ativas.fold(0.0, (s, c) => s + c.corrente);
+    final qtdCirc  = ativas.length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0B1B3D), Color(0xFF1a2e5a)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: const Color(0xFF0B1B3D).withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(
+        children: [
+          _previaItem(
+            icon: Icons.bolt,
+            label: 'Potência',
+            value: '${potTotal.toStringAsFixed(2)} kW',
+            color: const Color(0xFFFF7A00),
+          ),
+          _previaDiv(),
+          _previaItem(
+            icon: Icons.cable,
+            label: 'Circuitos',
+            value: '$qtdCirc',
+            color: Colors.white,
+          ),
+          _previaDiv(),
+          _previaItem(
+            icon: Icons.electric_bolt,
+            label: 'Corrente',
+            value: '${iTotal.toStringAsFixed(1)} A',
+            color: const Color(0xFFFF7A00),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _previaItem({required IconData icon, required String label, required String value, required Color color}) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 3),
+          Text(value,
+            style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w800),
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(label,
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _previaDiv() => Container(
+    width: 1, height: 36,
+    color: Colors.white.withValues(alpha: 0.2),
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+  );
 
   Widget _buildEmpty(BuildContext context) {
     return Center(
@@ -353,6 +432,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   late TextEditingController _notasCtrl;
   late TextEditingController _rendCtrl;
   late TextEditingController _fsCtrl;
+  late TextEditingController _especCtrl;
 
   @override
   void initState() {
@@ -395,6 +475,11 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
     _notasCtrl = TextEditingController(text: c?.notas ?? '');
     _rendCtrl = TextEditingController(text: (c?.rendimento ?? 0.90).toString());
     _fsCtrl   = TextEditingController(text: (c?.fatorServico ?? 1.15).toString());
+    // Para carga genérica: extrai o tipo especificado das notas [TIPO:xxx]
+    final tipoEspecStr = c != null && c.tipo == TipoCarga.generico
+        ? (RegExp(r'\[TIPO:([^\]]+)\]').firstMatch(c.notas)?.group(1) ?? '')
+        : '';
+    _especCtrl = TextEditingController(text: tipoEspecStr);
 
     // Potência: para A/C carregado, exibe BTU em vez de Watts
     if (_tipo == TipoCarga.arCondicionado) {
@@ -409,6 +494,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
     _descCtrl.dispose(); _potCtrl.dispose(); _qtdCtrl.dispose();
     _fpCtrl.dispose();   _fdCtrl.dispose();  _compCtrl.dispose();
     _notasCtrl.dispose(); _rendCtrl.dispose(); _fsCtrl.dispose();
+    _especCtrl.dispose();
     super.dispose();
   }
 
@@ -527,6 +613,45 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
                 onChanged: (v) => _setDefaultsForTipo(v!),
               ),
               const SizedBox(height: 12),
+
+              // ── ESPECIFICAR (apenas para tipo Genérico) ─────────────────
+              if (_tipo == TipoCarga.generico) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 14, color: AppColors.primary),
+                          SizedBox(width: 4),
+                          Text('Carga Genérica — especifique abaixo',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _especCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo da carga (aparecerá no PDF)',
+                          hintText: 'Ex: Compressor, Bomba d\'água, Forno...',
+                          prefixIcon: Icon(Icons.edit),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Especifique o tipo da carga genérica' : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // ── DESCRIÇÃO ──────────────────────────────────────────────
               TextFormField(
@@ -835,6 +960,11 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       potNominal = double.tryParse(_potCtrl.text) ?? 0;
     }
 
+    // Para tipo genérico: guarda especificação nas notas para uso no PDF
+    final notasFinais = _tipo == TipoCarga.generico && _especCtrl.text.trim().isNotEmpty
+        ? '[TIPO:${_especCtrl.text.trim()}] ${_notasCtrl.text}'.trim()
+        : _notasCtrl.text;
+
     final carga = Carga(
       id:             widget.cargaExistente?.id ?? const Uuid().v4(),
       descricao:      _descCtrl.text.trim().isEmpty ? _tipo.label : _descCtrl.text.trim(),
@@ -846,7 +976,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       fatorPotencia:  double.tryParse(_fpCtrl.text) ?? 0.92,
       fatorDemanda:   double.tryParse(_fdCtrl.text) ?? 100,
       fase:           _fase,
-      notas:          _notasCtrl.text,
+      notas:          notasFinais,
       rendimento:     double.tryParse(_rendCtrl.text) ?? 0.90,
       fatorServico:   double.tryParse(_fsCtrl.text) ?? 1.15,
       tipoPartida:    _partida,

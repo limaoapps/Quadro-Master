@@ -111,12 +111,12 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
       children: [
         _secao('Painel Executivo', Icons.dashboard_rounded),
         LayoutBuilder(builder: (ctx, constraints) {
-          final w = (constraints.maxWidth - 14) / 3;
+          final w = (constraints.maxWidth - 10) / 2;
           Widget card(String label, String value, IconData icon, Color color) =>
               _execCard(label, value, icon, color, w);
           return Wrap(
-            spacing: 7,
-            runSpacing: 7,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               card('P. Instalada',   '${r.totalPotenciaAtiva.toStringAsFixed(1)} kW',    Icons.bolt,                  _cor(r.totalPotenciaAtiva > 0 ? 'ok' : 'warn')),
               card('P. Demandada',   '${r.totalPotenciaDemandada.toStringAsFixed(1)} kW', Icons.power,                 AppColors.primary),
@@ -141,42 +141,43 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     return SizedBox(
       width: width,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4)],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0,2))],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
-                  child: Icon(icon, size: 11, color: color),
-                ),
-                const Spacer(),
-                Container(
-                  width: 5, height: 5,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 18, color: color),
             ),
-            const SizedBox(height: 4),
-            Text(value,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(value,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(label,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 1),
-            Text(label,
-              style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
+            Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
           ],
         ),
