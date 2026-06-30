@@ -202,7 +202,8 @@ class RelatorioScreen extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(7),
-            child: Image.memory(bytes, fit: BoxFit.contain,
+            child: Image.memory(bytes, fit: BoxFit.cover,
+              alignment: Alignment.center,
               errorBuilder: (_, __, ___) => _defaultLogoWidget(size)),
           ),
         );
@@ -576,12 +577,24 @@ class RelatorioScreen extends StatelessWidget {
     final resultado = prov.resultado;
     if (resultado == null) return;
 
-    final doc = pw.Document();
-    final now = DateFormat('dd/MM/yyyy').format(DateTime.now());
-    final nowFull = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    final cargas = projeto.cargas.where((c) => c.ativo).toList();
+    // ── UTF-8: carregar fontes com suporte completo a português ──
+    final fontRegular = await PdfGoogleFonts.notoSansRegular();
+    final fontBold    = await PdfGoogleFonts.notoSansBold();
+    final fontItalic  = await PdfGoogleFonts.notoSansItalic();
 
-    // Logo da empresa executora
+    final doc = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base:   fontRegular,
+        bold:   fontBold,
+        italic: fontItalic,
+      ),
+    );
+
+    final now     = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final nowFull = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final cargas  = projeto.cargas.where((c) => c.ativo).toList();
+
+    // Logo da empresa executora (apenas para o cabeçalho)
     pw.MemoryImage? logoExec;
     if (projeto.executora.logoBase64.isNotEmpty) {
       try { logoExec = pw.MemoryImage(base64Decode(projeto.executora.logoBase64)); } catch (_) {}
@@ -600,32 +613,31 @@ class RelatorioScreen extends StatelessWidget {
             children: [
 
               // ── SEÇÃO 1: EMPRESAS ──────────────────────────────────────────
-              _pdfSectionTitle('1', 'IDENTIFICAÇÃO DAS EMPRESAS'),
+              _pdfSectionTitle('1', 'IDENTIFICACAO DAS EMPRESAS'),
               pw.SizedBox(height: 6),
               pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Expanded(child: _pdfEmpresaCard(
                   titulo: 'EMPRESA EXECUTORA',
-                  logoImage: logoExec,
                   linhas: [
-                    if (projeto.executora.razaoSocial.isNotEmpty) ('Razão Social', projeto.executora.razaoSocial),
+                    if (projeto.executora.razaoSocial.isNotEmpty) ('Razao Social', projeto.executora.razaoSocial),
                     if (projeto.executora.documento.isNotEmpty) ('CNPJ/CPF', projeto.executora.documento),
                     if (projeto.executora.registro.isNotEmpty) (_cargoRegistroLabel(projeto.executora.cargo), projeto.executora.registro),
-                    if (projeto.executora.responsavel.isNotEmpty) ('Responsável', projeto.executora.responsavel),
+                    if (projeto.executora.responsavel.isNotEmpty) ('Responsavel', projeto.executora.responsavel),
                     if (projeto.executora.telefone.isNotEmpty) ('Telefone', projeto.executora.telefone),
                     if (projeto.executora.email.isNotEmpty) ('E-mail', projeto.executora.email),
-                    if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereço', projeto.executora.enderecoCompleto),
+                    if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereco', projeto.executora.enderecoCompleto),
                   ],
                 )),
                 pw.SizedBox(width: 10),
                 pw.Expanded(child: _pdfEmpresaCard(
                   titulo: 'EMPRESA CONTRATANTE',
                   linhas: [
-                    if (projeto.contratante.razaoSocial.isNotEmpty) ('Razão Social', projeto.contratante.razaoSocial),
+                    if (projeto.contratante.razaoSocial.isNotEmpty) ('Razao Social', projeto.contratante.razaoSocial),
                     if (projeto.contratante.documento.isNotEmpty) ('CNPJ/CPF', projeto.contratante.documento),
-                    if (projeto.contratante.responsavel.isNotEmpty) ('Responsável', projeto.contratante.responsavel),
+                    if (projeto.contratante.responsavel.isNotEmpty) ('Responsavel', projeto.contratante.responsavel),
                     if (projeto.contratante.telefone.isNotEmpty) ('Telefone', projeto.contratante.telefone),
                     if (projeto.contratante.email.isNotEmpty) ('E-mail', projeto.contratante.email),
-                    if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Local', projeto.contratante.enderecoCompleto),
+                    if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Local/Obra', projeto.contratante.enderecoCompleto),
                     if (projeto.contratante.art.isNotEmpty) ('ART/RRT', projeto.contratante.art),
                   ],
                 )),
@@ -645,7 +657,7 @@ class RelatorioScreen extends StatelessWidget {
               pw.SizedBox(height: 12),
 
               // ── SEÇÃO 4: DISTRIBUIÇÃO DE CARGAS E BALANCEAMENTO ──────────
-              _pdfSectionTitle('4', 'DISTRIBUIÇÃO DE CARGAS E BALANCEAMENTO DE FASES'),
+              _pdfSectionTitle('4', 'DISTRIBUICAO DE CARGAS E BALANCEAMENTO DE FASES'),
               pw.SizedBox(height: 6),
               pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Expanded(child: _pdfDistribuicaoCargas(resultado)),
@@ -661,15 +673,15 @@ class RelatorioScreen extends StatelessWidget {
               pw.SizedBox(height: 12),
 
               // ── SEÇÃO 6: MEMÓRIA DE CÁLCULO ───────────────────────────────
-              _pdfSectionTitle('6', 'MEMÓRIA DE CÁLCULO – POTÊNCIAS E CORRENTES'),
+              _pdfSectionTitle('6', 'MEMORIA DE CALCULO - POTENCIAS E CORRENTES'),
               pw.SizedBox(height: 6),
               pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Expanded(child: _pdfInfoCard([
-                  ('Potência Ativa Total (∑P)', '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
-                  ('Potência Reativa Total (∑Q)', '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr'),
-                  ('Potência Aparente (S)', '${resultado.totalPotenciaAparente.toStringAsFixed(3)} kVA'),
-                  ('Fator de Potência Médio', resultado.fatorPotenciaMedio.toStringAsFixed(3)),
-                  ('Potência Demandada (com FD)', '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW'),
+                  ('Potencia Ativa Total (P)', '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
+                  ('Potencia Reativa Total (Q)', '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr'),
+                  ('Potencia Aparente (S)', '${resultado.totalPotenciaAparente.toStringAsFixed(3)} kVA'),
+                  ('Fator de Potencia Medio', resultado.fatorPotenciaMedio.toStringAsFixed(3)),
+                  ('Potencia Demandada (com FD)', '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW'),
                 ])),
                 pw.SizedBox(width: 10),
                 pw.Expanded(child: _pdfInfoCard([
@@ -678,22 +690,28 @@ class RelatorioScreen extends StatelessWidget {
                   ('Corrente Fase C', '${resultado.correnteFaseC.toStringAsFixed(2)} A'),
                   ('Corrente de Neutro', '${resultado.correnteNeutro.toStringAsFixed(2)} A'),
                   ('Corrente Total', '${resultado.correnteTotal.toStringAsFixed(2)} A'),
-                  ('Corrente de Projeto (×1,25)', '${resultado.correnteProjeto.toStringAsFixed(2)} A'),
+                  ('Corrente de Projeto (x1,25)', '${resultado.correnteProjeto.toStringAsFixed(2)} A'),
                   ('Desbalanceamento', '${resultado.desbalanceamentoPercent.toStringAsFixed(1)}%'),
                 ])),
               ]),
               pw.SizedBox(height: 12),
 
               // ── SEÇÃO 7: DIAGNÓSTICO ──────────────────────────────────────
-              _pdfSectionTitle('7', 'DIAGNÓSTICO TÉCNICO AUTOMÁTICO'),
+              _pdfSectionTitle('7', 'DIAGNOSTICO TECNICO AUTOMATICO'),
               pw.SizedBox(height: 6),
               _pdfDiagnostico(resultado),
               pw.SizedBox(height: 12),
 
-              // ── SEÇÃO 8: 3 PAINÉIS TÉCNICOS ──────────────────────────────
-              _pdfSectionTitle('8', 'PAINÉIS TÉCNICOS'),
-              pw.SizedBox(height: 6),
-              _pdfPaineisTecnicos(resultado),
+              // ── SEÇÃO 8: PAINÉIS TÉCNICOS ───────────────────────────────
+              // NewPage garante que o bloco inicia numa nova folha se pouco espaco
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _pdfSectionTitle('8', 'PAINEIS TECNICOS'),
+                  pw.SizedBox(height: 6),
+                  _pdfPaineisTecnicos(resultado),
+                ],
+              ),
               pw.SizedBox(height: 10),
 
               // Assinatura
@@ -723,12 +741,14 @@ class RelatorioScreen extends StatelessWidget {
           logo != null
             ? pw.Container(
                 width: 44, height: 44,
-                padding: const pw.EdgeInsets.all(3),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: _orange, width: 1.5),
                   borderRadius: pw.BorderRadius.circular(6),
                 ),
-                child: pw.Image(logo, fit: pw.BoxFit.contain),
+                child: pw.ClipRRect(
+                  horizontalRadius: 5, verticalRadius: 5,
+                  child: pw.Image(logo, fit: pw.BoxFit.cover, width: 44, height: 44),
+                ),
               )
             : pw.Container(
                 width: 44, height: 44,
@@ -761,10 +781,10 @@ class RelatorioScreen extends StatelessWidget {
                 pw.Text('ABNT NBR 5410',
                   style: pw.TextStyle(color: _orange, fontSize: 8, fontWeight: pw.FontWeight.bold, letterSpacing: 1.0)),
                 pw.SizedBox(height: 4),
-                pw.Text('LAUDO TÉCNICO DE DIMENSIONAMENTO DE QUADRO ELÉTRICO',
+                pw.Text('LAUDO TECNICO DE DIMENSIONAMENTO DE QUADRO ELETRICO',
                   style: pw.TextStyle(color: const PdfColor(1, 1, 1, 0.8), fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text('${projeto.nome}  ·  ${projeto.tipoQuadro.label}  ·  ${projeto.numFases.label.split("–").first.trim()}',
-                  style: const pw.TextStyle(color: _orange, fontSize: 8)),
+                pw.Text('${projeto.nome} | ${projeto.tipoQuadro.label} | ${projeto.numFases.label.split('-').first.trim()}',
+                  style: const pw.TextStyle(color: _orange, fontSize: 8), overflow: pw.TextOverflow.clip),
               ],
             ),
           ),
@@ -780,7 +800,7 @@ class RelatorioScreen extends StatelessWidget {
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 _pdfHeaderInfoRow('Data', now),
-                _pdfHeaderInfoRow('Revisão', '00'),
+                _pdfHeaderInfoRow('Revisao', '00'),
                 _pdfHeaderInfoRow('Norma', 'NBR 5410'),
                 _pdfHeaderInfoRow('Página', '${ctx.pageNumber}/${ctx.pagesCount}'),
               ],
@@ -839,10 +859,11 @@ class RelatorioScreen extends StatelessWidget {
             ),
           ),
           pw.SizedBox(width: 8),
-          pw.Text('Quadro Master  ', style: pw.TextStyle(color: _white, fontSize: 7, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Quadro Master', style: pw.TextStyle(color: _white, fontSize: 7, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(width: 4),
           pw.Expanded(
             child: pw.Text(
-              '·  ABNT NBR 5410:2004  ·  NR-10  ·  IEC 60364  ·  Documento gerado automaticamente',
+              '| ABNT NBR 5410:2004 | NR-10 | IEC 60364 | Documento gerado automaticamente',
               style: const pw.TextStyle(fontSize: 7, color: _grey400),
             ),
           ),
@@ -901,7 +922,6 @@ class RelatorioScreen extends StatelessWidget {
   pw.Widget _pdfEmpresaCard({
     required String titulo,
     required List<(String, String)> linhas,
-    pw.MemoryImage? logoImage,
   }) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(8),
@@ -919,12 +939,8 @@ class RelatorioScreen extends StatelessWidget {
             pw.Text(titulo, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _orange)),
           ]),
           pw.SizedBox(height: 5),
-          if (logoImage != null) ...[
-            pw.Image(logoImage, height: 24, fit: pw.BoxFit.contain),
-            pw.SizedBox(height: 4),
-          ],
           if (linhas.isEmpty)
-            pw.Text('(não configurado)', style: const pw.TextStyle(fontSize: 7, color: _grey600))
+            pw.Text('(nao configurado)', style: const pw.TextStyle(fontSize: 7, color: _grey600))
           else
             ...linhas.map((l) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 2),
@@ -947,11 +963,11 @@ class RelatorioScreen extends StatelessWidget {
     final items = [
       ('Projeto', projeto.nome),
       ('Tipo', projeto.tipoQuadro.label),
-      ('Sistema', projeto.numFases.label.split('–').first.trim()),
+      ('Sistema', _numFasesShort(projeto.numFases)),
       ('Tensao', '${projeto.tensao.valor.toStringAsFixed(0)} V'),
       ('Frequencia', '60 Hz'),
       ('Data', now),
-      ('Local', projeto.contratante.cidade.isNotEmpty ? projeto.contratante.cidade : '—'),
+      ('Local', projeto.contratante.cidade.isNotEmpty ? projeto.contratante.cidade : 'N/D'),
     ];
     return pw.Row(
       children: items.map((item) => pw.Expanded(
@@ -990,20 +1006,20 @@ class RelatorioScreen extends StatelessWidget {
       ('P. Instalada', '${r.totalPotenciaAtiva.toStringAsFixed(1)} kW', cor(r.totalPotenciaAtiva > 0 ? 'ok' : 'warn')),
       ('P. Demandada', '${r.totalPotenciaDemandada.toStringAsFixed(1)} kW', _orange),
       ('I. Projeto', '${r.correnteProjeto.toStringAsFixed(1)} A', cor(r.utilizacaoDisjuntor > 95 ? 'error' : r.utilizacaoDisjuntor > 85 ? 'warn' : 'ok')),
-      ('Disj. Geral', '${r.disjuntorPolos}P×${r.disjuntorGeral}A', cor(r.classificacaoDisjuntor == ClassificacaoDisjuntor.critica ? 'error' : r.classificacaoDisjuntor == ClassificacaoDisjuntor.alta ? 'warn' : 'ok')),
-      ('FP Médio', r.fatorPotenciaMedio.toStringAsFixed(3), cor(r.fatorPotenciaMedio >= 0.92 ? 'ok' : r.fatorPotenciaMedio >= 0.85 ? 'warn' : 'error')),
+      ('Disj. Geral', '${r.disjuntorPolos}P x ${r.disjuntorGeral}A', cor(r.classificacaoDisjuntor == ClassificacaoDisjuntor.critica ? 'error' : r.classificacaoDisjuntor == ClassificacaoDisjuntor.alta ? 'warn' : 'ok')),
+      ('FP Medio', r.fatorPotenciaMedio.toStringAsFixed(3), cor(r.fatorPotenciaMedio >= 0.92 ? 'ok' : r.fatorPotenciaMedio >= 0.85 ? 'warn' : 'error')),
       ('Circuitos', '${r.numCircuitos}', _navy),
       ('Modulos', '${r.modulosUtilizados}/${r.modulosDisponiveis}', cor(r.percentOcupacao < 80 ? 'ok' : r.percentOcupacao < 90 ? 'warn' : 'error')),
     ];
 
     // Linha 2: 6 indicadores de status
     final bottomCards = [
-      ('Balanceamento', r.classificacaoBalanceamento.label, cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
-      ('Desbalanc.', '${r.desbalanceamentoPercent.toStringAsFixed(1)}%', cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
-      ('Res. Quadro', '${r.percentReservaQuadro.toStringAsFixed(0)}%', cor(r.percentReservaQuadro >= 20 ? 'ok' : r.percentReservaQuadro >= 10 ? 'warn' : 'error')),
-      ('Res. Carga', '${r.percentReservaCarga.toStringAsFixed(0)}%', cor(r.percentReservaCarga >= 20 ? 'ok' : r.percentReservaCarga >= 15 ? 'warn' : 'error')),
-      ('Queda Tens.', '${r.quedaTensaoMax.toStringAsFixed(1)}%', cor(r.quedaTensaoMax <= 4 ? 'ok' : r.quedaTensaoMax <= 7 ? 'warn' : 'error')),
-      ('Capacitores', r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'OK', r.necessitaCorrecaoFP ? _yellow : _green),
+      ('Balanc.', r.classificacaoBalanceamento.label, cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
+      ('Desbal.%', '${r.desbalanceamentoPercent.toStringAsFixed(1)}%', cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
+      ('Res.Quadro', '${r.percentReservaQuadro.toStringAsFixed(0)}%', cor(r.percentReservaQuadro >= 20 ? 'ok' : r.percentReservaQuadro >= 10 ? 'warn' : 'error')),
+      ('Res.Carga', '${r.percentReservaCarga.toStringAsFixed(0)}%', cor(r.percentReservaCarga >= 20 ? 'ok' : r.percentReservaCarga >= 15 ? 'warn' : 'error')),
+      ('Queda V.', '${r.quedaTensaoMax.toStringAsFixed(1)}%', cor(r.quedaTensaoMax <= 4 ? 'ok' : r.quedaTensaoMax <= 7 ? 'warn' : 'error')),
+      ('Cap.FP', r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'OK', r.necessitaCorrecaoFP ? _yellow : _green),
     ];
 
     return pw.Column(children: [
@@ -1040,15 +1056,16 @@ class RelatorioScreen extends StatelessWidget {
             borderRadius: pw.BorderRadius.circular(4),
             border: pw.Border.all(color: PdfColor(c.$3.red, c.$3.green, c.$3.blue, 0.2), width: 0.5),
           ),
-          child: pw.Column(children: [
+          child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: [
+            // Circulo de status — width == height garante circulo perfeito
             pw.Container(
-              width: 7, height: 7,
+              width: 8, height: 8,
               decoration: pw.BoxDecoration(color: c.$3, shape: pw.BoxShape.circle),
             ),
             pw.SizedBox(height: 3),
-            pw.Text(c.$2, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: c.$3)),
+            pw.Text(c.$2, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: c.$3), textAlign: pw.TextAlign.center),
             pw.SizedBox(height: 1),
-            pw.Text(c.$1, style: const pw.TextStyle(fontSize: 6, color: _grey600)),
+            pw.Text(c.$1, style: const pw.TextStyle(fontSize: 5.5, color: _grey600), textAlign: pw.TextAlign.center),
           ]),
         ),
       )).toList()),
@@ -1063,20 +1080,20 @@ class RelatorioScreen extends StatelessWidget {
     else { cor = _red; }
 
     return pw.Container(
-      width: 58, height: 58,
+      width: 48, height: 48,
       decoration: pw.BoxDecoration(
         color: _white,
         shape: pw.BoxShape.circle,
-        border: pw.Border.all(color: cor, width: 3),
-        boxShadow: [pw.BoxShadow(color: PdfColor(cor.red, cor.green, cor.blue, 0.2), blurRadius: 6)],
+        border: pw.Border.all(color: cor, width: 2.5),
+        boxShadow: [pw.BoxShadow(color: PdfColor(cor.red, cor.green, cor.blue, 0.15), blurRadius: 4)],
       ),
       child: pw.Column(
         mainAxisAlignment: pw.MainAxisAlignment.center,
         children: [
-          pw.Text(indice.toStringAsFixed(0), style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: cor)),
-          pw.Text('/100', style: const pw.TextStyle(fontSize: 7, color: _grey600)),
+          pw.Text(indice.toStringAsFixed(0), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: cor)),
+          pw.Text('/100', style: const pw.TextStyle(fontSize: 6, color: _grey600)),
           pw.SizedBox(height: 1),
-          pw.Text(label, style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold, color: cor), textAlign: pw.TextAlign.center),
+          pw.Text(label, style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: cor), textAlign: pw.TextAlign.center),
         ],
       ),
     );
@@ -1099,7 +1116,7 @@ class RelatorioScreen extends StatelessWidget {
           pw.Row(children: [
             pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: _orange, shape: pw.BoxShape.circle)),
             pw.SizedBox(width: 5),
-            pw.Text('Distribuição por Categoria',
+            pw.Text('Distribuicao por Categoria',
               style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
           ]),
           pw.SizedBox(height: 6),
@@ -1137,7 +1154,7 @@ class RelatorioScreen extends StatelessWidget {
                   pw.Expanded(child: pw.Text(cat.nome,
                     style: const pw.TextStyle(fontSize: 7, color: _black))),
                   pw.SizedBox(width: 35, child: pw.Text(
-                    '${(cat.percentualTotal * r.totalPotenciaAtiva / 100).toStringAsFixed(2)}',
+                    (cat.percentualTotal * r.totalPotenciaAtiva / 100).toStringAsFixed(2),
                     style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black),
                     textAlign: pw.TextAlign.right)),
                   pw.SizedBox(width: 35, child: pw.Text(
@@ -1210,7 +1227,7 @@ class RelatorioScreen extends StatelessWidget {
               pw.Expanded(child: pw.Text('Corrente',
                 style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
                 textAlign: pw.TextAlign.right)),
-              pw.SizedBox(width: 40, child: pw.Text('% Máx.',
+              pw.SizedBox(width: 40, child: pw.Text('% Max.',
                 style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
                 textAlign: pw.TextAlign.right)),
             ]),
@@ -1263,7 +1280,7 @@ class RelatorioScreen extends StatelessWidget {
                     color: desbalOk ? _green : _yellow)),
               ]),
               pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                pw.Text('Classificação', style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
+                pw.Text('Classificacao', style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
                 pw.Text(r.classificacaoBalanceamento.label,
                   style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold,
                     color: desbalOk ? _green : _yellow)),
@@ -1283,13 +1300,13 @@ class RelatorioScreen extends StatelessWidget {
       return pw.Text('Nenhum circuito ativo.', style: const pw.TextStyle(fontSize: 8, color: _grey600));
     }
     return pw.TableHelper.fromTextArray(
-      headers: ['#', 'Descrição', 'Tipo', 'Lig.', 'Fase', 'P(W)', 'I(A)', 'Disj.(A)', 'Cabo(mm²)', 'ΔV(%)', 'Situação'],
+      headers: ['#', 'Descricao', 'Tipo', 'Lig.', 'Fase', 'P(W)', 'I(A)', 'Disj.(A)', 'Cabo(mm2)', 'dV(%)', 'Status'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: _white),
       headerDecoration: const pw.BoxDecoration(color: _orange),
       data: cargas.asMap().entries.map((e) {
         final c = e.value;
         final dvOk = c.quedaTensaoPercent <= 4;
-        final status = dvOk ? '● OK' : c.quedaTensaoPercent <= 7 ? '● Aten.' : '● Crit.';
+        final status = dvOk ? '[OK]' : c.quedaTensaoPercent <= 7 ? '[Atencao]' : '[Critico]';
         return [
           '${e.key + 1}',
           c.descricao,
@@ -1323,17 +1340,17 @@ class RelatorioScreen extends StatelessWidget {
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       if (r.diagnosticoConformes.isNotEmpty) ...[
         _pdfDiagSubHeader('CONFORMIDADES', _green),
-        ...r.diagnosticoConformes.map((c) => _pdfDiagItem('✓', c, _green)),
+        ...r.diagnosticoConformes.map((c) => _pdfDiagItem('[OK]', c, _green)),
         pw.SizedBox(height: 4),
       ],
       if (r.diagnosticoProblemas.isNotEmpty) ...[
-        _pdfDiagSubHeader('PENDÊNCIAS / PROBLEMAS', _red),
-        ...r.diagnosticoProblemas.map((p) => _pdfDiagItem('✗', p, _red)),
+        _pdfDiagSubHeader('PENDENCIAS / PROBLEMAS', _red),
+        ...r.diagnosticoProblemas.map((p) => _pdfDiagItem('[!]', p, _red)),
         pw.SizedBox(height: 4),
       ],
       if (r.diagnosticoRecomendacoes.isNotEmpty) ...[
-        _pdfDiagSubHeader('RECOMENDAÇÕES TÉCNICAS', _yellow),
-        ...r.diagnosticoRecomendacoes.map((rec) => _pdfDiagItem('→', rec, _yellow)),
+        _pdfDiagSubHeader('RECOMENDACOES TECNICAS', _yellow),
+        ...r.diagnosticoRecomendacoes.map((rec) => _pdfDiagItem('[>]', rec, _yellow)),
         pw.SizedBox(height: 4),
       ],
       pw.Container(
@@ -1345,17 +1362,16 @@ class RelatorioScreen extends StatelessWidget {
           border: pw.Border.all(color: const PdfColor(0.7, 0.8, 0.9), width: 0.5),
         ),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text('RECOMENDAÇÕES GERAIS — ABNT NBR 5410',
+          pw.Text('RECOMENDACOES GERAIS - ABNT NBR 5410',
             style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy)),
           pw.SizedBox(height: 3),
-          pw.Text(
-            '• Manter reserva mínima de 20% da capacidade do quadro.\n'
-            '• Prever circuitos dedicados para equipamentos >1.000 W.\n'
-            '• Instalar DPS (Dispositivo de Proteção contra Surtos) — ABNT NBR 5419.\n'
-            '• Revisar periodicamente as proteções conforme ABNT NBR 5410:2004.\n'
-            '• Manter diagrama unifilar atualizado conforme NR-10.',
-            style: const pw.TextStyle(fontSize: 7, color: _grey600),
-          ),
+          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            _pdfBullet('Manter reserva minima de 20% da capacidade do quadro.'),
+            _pdfBullet('Prever circuitos dedicados para equipamentos acima de 1.000 W.'),
+            _pdfBullet('Instalar DPS (Dispositivo de Protecao contra Surtos) - ABNT NBR 5419.'),
+            _pdfBullet('Revisar periodicamente as protecoes conforme ABNT NBR 5410:2004.'),
+            _pdfBullet('Manter diagrama unifilar atualizado conforme NR-10.'),
+          ]),
         ]),
       ),
     ]);
@@ -1375,7 +1391,19 @@ class RelatorioScreen extends StatelessWidget {
   pw.Widget _pdfDiagItem(String symbol, String text, PdfColor cor) => pw.Padding(
     padding: const pw.EdgeInsets.only(bottom: 2, left: 4),
     child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text('$symbol ', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: cor)),
+      pw.Text('$symbol ', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: cor)),
+      pw.Expanded(child: pw.Text(text, style: const pw.TextStyle(fontSize: 7, color: _grey600))),
+    ]),
+  );
+
+  pw.Widget _pdfBullet(String text) => pw.Padding(
+    padding: const pw.EdgeInsets.only(bottom: 2),
+    child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+      pw.Container(
+        width: 4, height: 4,
+        margin: const pw.EdgeInsets.only(top: 2, right: 4),
+        decoration: const pw.BoxDecoration(color: _navy, shape: pw.BoxShape.circle),
+      ),
       pw.Expanded(child: pw.Text(text, style: const pw.TextStyle(fontSize: 7, color: _grey600))),
     ]),
   );
@@ -1386,37 +1414,37 @@ class RelatorioScreen extends StatelessWidget {
   pw.Widget _pdfPaineisTecnicos(ResultadoProjeto r) {
     final paineis = [
       _pdfPainelTecnico(
-        titulo: 'Proteção Geral',
-        valor: '${r.disjuntorPolos}P × ${r.disjuntorGeral} A',
-        subtitulo: 'Utilização: ${r.utilizacaoDisjuntor.toStringAsFixed(0)}%',
+        titulo: 'Protecao Geral',
+        valor: '${r.disjuntorPolos}P x ${r.disjuntorGeral} A',
+        subtitulo: 'Utilizacao: ${r.utilizacaoDisjuntor.toStringAsFixed(0)}%',
         badge: r.classificacaoDisjuntor.label,
         ok: r.classificacaoDisjuntor != ClassificacaoDisjuntor.critica,
         detalhes: [
           ('Icc estimada', '${(r.correnteCurtoEstimada * 1000).toStringAsFixed(0)} A'),
-          ('Cap. interrupção', '${r.capacidadeInterrupcao.toStringAsFixed(0)} kA'),
+          ('Cap. interrupcao', '${r.capacidadeInterrupcao.toStringAsFixed(0)} kA'),
           ('Seletividade', r.seletividadeOk ? 'OK' : 'Verificar'),
         ],
       ),
       _pdfPainelTecnico(
-        titulo: 'Reservas e Utilização',
+        titulo: 'Reservas e Utilizacao',
         valor: 'Quadro: ${r.percentReservaQuadro.toStringAsFixed(0)}%',
         subtitulo: 'Carga: ${r.percentReservaCarga.toStringAsFixed(0)}%',
-        badge: r.percentReservaQuadro >= 20 ? 'Adequada' : 'Atenção',
+        badge: r.percentReservaQuadro >= 20 ? 'Adequada' : 'Atencao',
         ok: r.percentReservaQuadro >= 20,
         detalhes: [
-          ('Módulos livres', '${r.modulosLivres}/${r.modulosDisponiveis}'),
+          ('Modulos livres', '${r.modulosLivres}/${r.modulosDisponiveis}'),
           ('Ocup. quadro', '${r.percentOcupacao.toStringAsFixed(0)}%'),
           ('I restante', '${r.correnteRestante.toStringAsFixed(1)} A'),
         ],
       ),
       _pdfPainelTecnico(
-        titulo: 'Correção do FP',
-        valor: r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'Não necessário',
+        titulo: 'Correcao do FP',
+        valor: r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'Nao necessario',
         subtitulo: 'FP atual: ${r.fatorPotenciaMedio.toStringAsFixed(3)}',
         badge: r.fatorPotenciaMedio >= 0.92 ? 'Conforme' : 'Corrigir',
         ok: r.fatorPotenciaMedio >= 0.92,
         detalhes: [
-          ('FP mínimo ANEEL', '0,920'),
+          ('FP minimo ANEEL', '0,920'),
           ('Consumo mensal', '${(r.totalPotenciaDemandada * 8 * 22).toStringAsFixed(0)} kWh'),
           ('Consumo anual', '${(r.totalPotenciaDemandada * 8 * 264).toStringAsFixed(0)} kWh'),
         ],
@@ -1509,15 +1537,15 @@ class RelatorioScreen extends StatelessWidget {
       ),
       child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text('Responsável Técnico: ${projeto.executora.responsavel.isEmpty ? "—" : projeto.executora.responsavel}',
+          pw.Text('Responsavel Tecnico: ${projeto.executora.responsavel.isEmpty ? "N/D" : projeto.executora.responsavel}',
             style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-          pw.Text('${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro.isEmpty ? "—" : projeto.executora.registro}',
+          pw.Text('${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro.isEmpty ? "N/D" : projeto.executora.registro}',
             style: const pw.TextStyle(fontSize: 8, color: _grey600)),
         ]),
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
           pw.Text('Emitido em: $nowFull',
             style: const pw.TextStyle(fontSize: 8, color: _grey600)),
-          pw.Text('ABNT NBR 5410:2004 + Em.1:2008  ·  60 Hz',
+          pw.Text('ABNT NBR 5410:2004 + Em.1:2008 | 60 Hz',
             style: const pw.TextStyle(fontSize: 8, color: _grey600)),
         ]),
       ]),
