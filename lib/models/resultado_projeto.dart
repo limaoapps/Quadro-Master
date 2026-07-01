@@ -292,6 +292,7 @@ class ResultadoProjeto {
     required double tensaoLinha,
     required double tensaoFase,
     double tarifaKwh = 0,
+    double reservaPercent = 0,
   }) {
     double pAtivaA = 0, pReativaA = 0;
     double pAtivaB = 0, pReativaB = 0;
@@ -375,7 +376,11 @@ class ResultadoProjeto {
     );
 
     double iProj = iTotal * 1.25;
-    int dijGeral = _disjuntorPadrao(iProj);
+    // Aplica margem de reserva adicional configurada pelo usuário
+    final double iProjComReserva = reservaPercent > 0
+        ? iProj * (1 + reservaPercent / 100)
+        : iProj;
+    int dijGeral = _disjuntorPadrao(iProjComReserva);
     int polos = numFases == 2 ? 3 : 1;
 
     // ── Módulo 5: Utilização do disjuntor ────────────────────────

@@ -14,6 +14,7 @@ class AppProvider extends ChangeNotifier {
   PerfilUsuario _perfilUsuario = PerfilUsuario();
   bool _carregando = false;
   int _tabIndex = 0;
+  double _reservaPercent = 0;
 
   List<Projeto> get projetos => _projetos;
   Projeto? get projetoAtual => _projetoAtual;
@@ -21,6 +22,12 @@ class AppProvider extends ChangeNotifier {
   PerfilUsuario get perfilUsuario => _perfilUsuario;
   bool get carregando => _carregando;
   int get tabIndex => _tabIndex;
+  double get reservaPercent => _reservaPercent;
+
+  void setReservaPercent(double v) {
+    _reservaPercent = v.clamp(0.0, 50.0);
+    notifyListeners();
+  }
 
   ResultadoProjeto? get resultado {
     if (_projetoAtual == null || _projetoAtual!.cargas.isEmpty) return null;
@@ -29,6 +36,7 @@ class AppProvider extends ChangeNotifier {
       numFases: _projetoAtual!.numFases.index,
       tensaoLinha: _projetoAtual!.tensao.valor,
       tensaoFase: _projetoAtual!.tensao.tensaoFase,
+      reservaPercent: _reservaPercent,
     );
   }
 
@@ -145,6 +153,16 @@ class AppProvider extends ChangeNotifier {
   Future<void> excluirCarga(String id) async {
     if (_projetoAtual == null) return;
     _projetoAtual!.cargas.removeWhere((c) => c.id == id);
+    _projetoAtual!.modificadoEm = DateTime.now();
+    await salvarProjetoAtual();
+  }
+
+  Future<void> duplicarCarga(Carga carga) async {
+    if (_projetoAtual == null) return;
+    final novoId = _uuid.v4();
+    final map = {...carga.toMap(), 'id': novoId, 'descricao': '${carga.descricao} (cópia)'};
+    final nova = Carga.fromMap(map);
+    _projetoAtual!.cargas.add(nova);
     _projetoAtual!.modificadoEm = DateTime.now();
     await salvarProjetoAtual();
   }

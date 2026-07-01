@@ -569,595 +569,412 @@ class RelatorioScreen extends StatelessWidget {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), child: t);
   }
 
+  Color _statusColor(String s) {
+    if (s == 'ok')   return AppColors.success;
+    if (s == 'warn') return AppColors.warning;
+    return AppColors.error;
+  }
+
+  Future<void> _compartilhar(BuildContext context) async {
+    // Gera e compartilha o PDF usando o mesmo mecanismo de impressão
+    await _gerarPdf(context);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
-  // ████████  GERAÇÃO DO PDF — FIEL À IMAGEM DE REFERÊNCIA  ████████
+  // ████████  GERAÇÃO DO PDF — v4 (Noto Sans UTF-8, layout fiel ao app)  ████
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _gerarPdf(BuildContext context) async {
     final prov = context.read<AppProvider>();
     final resultado = prov.resultado;
     if (resultado == null) return;
 
-    // ── UTF-8: carregar fontes com suporte completo a português ──
-    final fontRegular = await PdfGoogleFonts.notoSansRegular();
-    final fontBold    = await PdfGoogleFonts.notoSansBold();
-    final fontItalic  = await PdfGoogleFonts.notoSansItalic();
+    // ── 1. Carrega fontes UTF-8 (suporte completo a portugues e simbolos) ──
+    final fontReg  = await PdfGoogleFonts.notoSansRegular();
+    final fontBold = await PdfGoogleFonts.notoSansBold();
+    final fontItal = await PdfGoogleFonts.notoSansItalic();
 
     final doc = pw.Document(
-      theme: pw.ThemeData.withFont(
-        base:   fontRegular,
-        bold:   fontBold,
-        italic: fontItalic,
-      ),
+      theme: pw.ThemeData.withFont(base: fontReg, bold: fontBold, italic: fontItal),
     );
 
     final now     = DateFormat('dd/MM/yyyy').format(DateTime.now());
     final nowFull = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
     final cargas  = projeto.cargas.where((c) => c.ativo).toList();
 
-    // Logo da empresa executora (apenas para o cabeçalho)
+    // ── 2. Logo da empresa (so no cabecalho) ──
     pw.MemoryImage? logoExec;
     if (projeto.executora.logoBase64.isNotEmpty) {
       try { logoExec = pw.MemoryImage(base64Decode(projeto.executora.logoBase64)); } catch (_) {}
     }
 
-    doc.addPage(pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: pw.EdgeInsets.zero,
-      header: (ctx) => _pdfHeader(ctx, now, logoExec),
-      footer: (ctx) => _pdfFooter(ctx),
-      build: (ctx) => [
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
+    // ── 3. Paleta de cores PDF ──
+    const navy   = PdfColor.fromInt(0xFF0B1B3D);
+    const orange = PdfColor.fromInt(0xFFFF7A00);
+    const green  = PdfColor.fromInt(0xFF28A745);
+    const yellow = PdfColor.fromInt(0xFFFFA500);
+    const red    = PdfColor.fromInt(0xFFDC3545);
+    const grey50 = PdfColor.fromInt(0xFFF8F9FA);
+    const white  = PdfColors.white;
+    const black  = PdfColor.fromInt(0xFF212529);
+    const grey6  = PdfColors.grey600;
+    const grey4  = PdfColors.grey400;
 
-              // ── SEÇÃO 1: EMPRESAS ──────────────────────────────────────────
-              _pdfSectionTitle('1', 'IDENTIFICACAO DAS EMPRESAS'),
-              pw.SizedBox(height: 6),
-              pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Expanded(child: _pdfEmpresaCard(
-                  titulo: 'EMPRESA EXECUTORA',
-                  linhas: [
-                    if (projeto.executora.razaoSocial.isNotEmpty) ('Razao Social', projeto.executora.razaoSocial),
-                    if (projeto.executora.documento.isNotEmpty) ('CNPJ/CPF', projeto.executora.documento),
-                    if (projeto.executora.registro.isNotEmpty) (_cargoRegistroLabel(projeto.executora.cargo), projeto.executora.registro),
-                    if (projeto.executora.responsavel.isNotEmpty) ('Responsavel', projeto.executora.responsavel),
-                    if (projeto.executora.telefone.isNotEmpty) ('Telefone', projeto.executora.telefone),
-                    if (projeto.executora.email.isNotEmpty) ('E-mail', projeto.executora.email),
-                    if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereco', projeto.executora.enderecoCompleto),
-                  ],
-                )),
-                pw.SizedBox(width: 10),
-                pw.Expanded(child: _pdfEmpresaCard(
-                  titulo: 'EMPRESA CONTRATANTE',
-                  linhas: [
-                    if (projeto.contratante.razaoSocial.isNotEmpty) ('Razao Social', projeto.contratante.razaoSocial),
-                    if (projeto.contratante.documento.isNotEmpty) ('CNPJ/CPF', projeto.contratante.documento),
-                    if (projeto.contratante.responsavel.isNotEmpty) ('Responsavel', projeto.contratante.responsavel),
-                    if (projeto.contratante.telefone.isNotEmpty) ('Telefone', projeto.contratante.telefone),
-                    if (projeto.contratante.email.isNotEmpty) ('E-mail', projeto.contratante.email),
-                    if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Local/Obra', projeto.contratante.enderecoCompleto),
-                    if (projeto.contratante.art.isNotEmpty) ('ART/RRT', projeto.contratante.art),
-                  ],
-                )),
-              ]),
-              pw.SizedBox(height: 12),
+    // ── 4. Funcoes auxiliares inline ──
+    PdfColor corStatus(String s) {
+      if (s == 'ok')   return green;
+      if (s == 'warn') return yellow;
+      return red;
+    }
 
-              // ── SEÇÃO 2: DADOS GERAIS ─────────────────────────────────────
-              _pdfSectionTitle('2', 'DADOS GERAIS DO PROJETO'),
-              pw.SizedBox(height: 6),
-              _pdfDadosGerais(now),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 3: PAINEL RESUMO ────────────────────────────────────
-              _pdfSectionTitle('3', 'PAINEL RESUMO'),
-              pw.SizedBox(height: 6),
-              _pdfPainelResumo(resultado),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 4: DISTRIBUIÇÃO DE CARGAS E BALANCEAMENTO ──────────
-              _pdfSectionTitle('4', 'DISTRIBUICAO DE CARGAS E BALANCEAMENTO DE FASES'),
-              pw.SizedBox(height: 6),
-              pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Expanded(child: _pdfDistribuicaoCargas(resultado)),
-                pw.SizedBox(width: 10),
-                pw.Expanded(child: _pdfBalanceamentoFases(resultado)),
-              ]),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 5: TABELA DE CIRCUITOS ──────────────────────────────
-              _pdfSectionTitle('5', 'DISJUNTORES E CONDUTORES POR CIRCUITO'),
-              pw.SizedBox(height: 6),
-              _pdfTabelaCircuitos(cargas),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 6: MEMÓRIA DE CÁLCULO ───────────────────────────────
-              _pdfSectionTitle('6', 'MEMORIA DE CALCULO - POTENCIAS E CORRENTES'),
-              pw.SizedBox(height: 6),
-              pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Expanded(child: _pdfInfoCard([
-                  ('Potencia Ativa Total (P)', '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
-                  ('Potencia Reativa Total (Q)', '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr'),
-                  ('Potencia Aparente (S)', '${resultado.totalPotenciaAparente.toStringAsFixed(3)} kVA'),
-                  ('Fator de Potencia Medio', resultado.fatorPotenciaMedio.toStringAsFixed(3)),
-                  ('Potencia Demandada (com FD)', '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW'),
-                ])),
-                pw.SizedBox(width: 10),
-                pw.Expanded(child: _pdfInfoCard([
-                  ('Corrente Fase A', '${resultado.correnteFaseA.toStringAsFixed(2)} A'),
-                  ('Corrente Fase B', '${resultado.correnteFaseB.toStringAsFixed(2)} A'),
-                  ('Corrente Fase C', '${resultado.correnteFaseC.toStringAsFixed(2)} A'),
-                  ('Corrente de Neutro', '${resultado.correnteNeutro.toStringAsFixed(2)} A'),
-                  ('Corrente Total', '${resultado.correnteTotal.toStringAsFixed(2)} A'),
-                  ('Corrente de Projeto (x1,25)', '${resultado.correnteProjeto.toStringAsFixed(2)} A'),
-                  ('Desbalanceamento', '${resultado.desbalanceamentoPercent.toStringAsFixed(1)}%'),
-                ])),
-              ]),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 7: DIAGNÓSTICO ──────────────────────────────────────
-              _pdfSectionTitle('7', 'DIAGNOSTICO TECNICO AUTOMATICO'),
-              pw.SizedBox(height: 6),
-              _pdfDiagnostico(resultado),
-              pw.SizedBox(height: 12),
-
-              // ── SEÇÃO 8: PAINÉIS TÉCNICOS ───────────────────────────────
-              // NewPage garante que o bloco inicia numa nova folha se pouco espaco
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  _pdfSectionTitle('8', 'PAINEIS TECNICOS'),
-                  pw.SizedBox(height: 6),
-                  _pdfPaineisTecnicos(resultado),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-
-              // Assinatura
-              _pdfAssinatura(resultado, nowFull),
-              pw.SizedBox(height: 6),
-            ],
-          ),
-        ),
-      ],
-    ));
-
-    await Printing.layoutPdf(onLayout: (fmt) => doc.save());
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // CABEÇALHO — navy #0B1B3D, logo Quadro Master (ou logo empresa), info box
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfHeader(pw.Context ctx, String now, pw.MemoryImage? logo) {
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.fromLTRB(22, 12, 22, 12),
-      color: _navy,
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
-        children: [
-          // Logo: empresa se disponível, senão "quadro laranja + raio"
-          logo != null
-            ? pw.Container(
-                width: 44, height: 44,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: _orange, width: 1.5),
-                  borderRadius: pw.BorderRadius.circular(6),
-                ),
-                child: pw.ClipRRect(
-                  horizontalRadius: 5, verticalRadius: 5,
-                  child: pw.Image(logo, fit: pw.BoxFit.cover, width: 44, height: 44),
-                ),
-              )
-            : pw.Container(
-                width: 44, height: 44,
-                decoration: pw.BoxDecoration(
-                  color: _orange,
-                  borderRadius: pw.BorderRadius.circular(6),
-                ),
-                child: pw.Center(
-                  child: pw.Column(
-                    mainAxisAlignment: pw.MainAxisAlignment.center,
-                    children: [
-                      pw.Container(
-                        width: 20, height: 20,
-                        child: pw.CustomPaint(
-                          painter: (canvas, size) => _desenharRaio(canvas, size),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          pw.SizedBox(width: 12),
-          // Título principal
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text('QUADRO MASTER',
-                  style: pw.TextStyle(color: _white, fontSize: 13, fontWeight: pw.FontWeight.bold, letterSpacing: 1.5)),
-                pw.Text('ABNT NBR 5410',
-                  style: pw.TextStyle(color: _orange, fontSize: 8, fontWeight: pw.FontWeight.bold, letterSpacing: 1.0)),
-                pw.SizedBox(height: 4),
-                pw.Text('LAUDO TECNICO DE DIMENSIONAMENTO DE QUADRO ELETRICO',
-                  style: pw.TextStyle(color: const PdfColor(1, 1, 1, 0.8), fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text('${projeto.nome} | ${projeto.tipoQuadro.label} | ${projeto.numFases.label.split('-').first.trim()}',
-                  style: const pw.TextStyle(color: _orange, fontSize: 8), overflow: pw.TextOverflow.clip),
-              ],
-            ),
-          ),
-          pw.SizedBox(width: 12),
-          // Info box com borda laranja
-          pw.Container(
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: _orange, width: 1.2),
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                _pdfHeaderInfoRow('Data', now),
-                _pdfHeaderInfoRow('Revisao', '00'),
-                _pdfHeaderInfoRow('Norma', 'NBR 5410'),
-                _pdfHeaderInfoRow('Página', '${ctx.pageNumber}/${ctx.pagesCount}'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Desenha raio (lightning bolt) para o logo padrão
-  void _desenharRaio(PdfGraphics canvas, PdfPoint size) {
-    canvas.setFillColor(_white);
-    final w = size.x;
-    final h = size.y;
-    canvas.moveTo(w * 0.65, 0);
-    canvas.lineTo(w * 0.28, h * 0.5);
-    canvas.lineTo(w * 0.5, h * 0.5);
-    canvas.lineTo(w * 0.35, h);
-    canvas.lineTo(w * 0.72, h * 0.48);
-    canvas.lineTo(w * 0.5, h * 0.48);
-    canvas.lineTo(w * 0.65, 0);
-    canvas.fillPath();
-  }
-
-  pw.Widget _pdfHeaderInfoRow(String label, String value) => pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(vertical: 0.5),
-    child: pw.Row(
-      mainAxisSize: pw.MainAxisSize.min,
-      children: [
-        pw.Text('$label: ', style: const pw.TextStyle(fontSize: 7, color: _grey400)),
-        pw.Text(value, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _white)),
-      ],
-    ),
-  );
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // RODAPÉ — navy, logo Quadro Master, texto normativo, QR code
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfFooter(pw.Context ctx) {
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-      color: _navy,
-      child: pw.Row(
-        children: [
-          // Logo mini no rodapé
-          pw.Container(
-            width: 18, height: 18,
-            decoration: pw.BoxDecoration(
-              color: _orange,
-              borderRadius: pw.BorderRadius.circular(3),
-            ),
-            child: pw.Center(
-              child: pw.Text('Q', style: pw.TextStyle(color: _white, fontSize: 9, fontWeight: pw.FontWeight.bold)),
-            ),
-          ),
-          pw.SizedBox(width: 8),
-          pw.Text('Quadro Master', style: pw.TextStyle(color: _white, fontSize: 7, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(width: 4),
-          pw.Expanded(
-            child: pw.Text(
-              '| ABNT NBR 5410:2004 | NR-10 | IEC 60364 | Documento gerado automaticamente',
-              style: const pw.TextStyle(fontSize: 7, color: _grey400),
-            ),
-          ),
-          // QR code placeholder
-          pw.Container(
-            width: 28, height: 28,
-            decoration: pw.BoxDecoration(
-              color: _white,
-              borderRadius: pw.BorderRadius.circular(2),
-            ),
-            child: pw.Padding(
-              padding: const pw.EdgeInsets.all(3),
-              child: pw.GridView(
-                crossAxisCount: 4,
-                children: List.generate(16, (i) => pw.Container(
-                  margin: const pw.EdgeInsets.all(0.3),
-                  color: _navy,
-                )),
-              ),
-            ),
-          ),
-          pw.SizedBox(width: 8),
-          pw.Text('Pág. ${ctx.pageNumber}/${ctx.pagesCount}',
-            style: pw.TextStyle(fontSize: 7, color: _white, fontWeight: pw.FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Título de seção com círculo laranja + linha
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfSectionTitle(String num, String titulo) {
-    return pw.Row(
-      children: [
+    // Titulo de secao (circulo laranja + linha)
+    pw.Widget secTitle(String num, String titulo) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Row(children: [
         pw.Container(
           width: 16, height: 16,
-          decoration: const pw.BoxDecoration(color: _orange, shape: pw.BoxShape.circle),
+          decoration: const pw.BoxDecoration(color: orange, shape: pw.BoxShape.circle),
           alignment: pw.Alignment.center,
-          child: pw.Text(num, style: pw.TextStyle(color: _white, fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          child: pw.Text(num, style: pw.TextStyle(color: white, fontSize: 8, fontWeight: pw.FontWeight.bold)),
         ),
         pw.SizedBox(width: 6),
-        pw.Text(titulo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _navy, letterSpacing: 0.5)),
+        pw.Text(titulo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: navy, letterSpacing: 0.4)),
         pw.Expanded(child: pw.Container(
           margin: const pw.EdgeInsets.only(left: 8),
-          height: 1,
-          color: _orange,
+          height: 1, color: orange,
         )),
-      ],
+      ]),
     );
-  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Card de empresa (borda esquerda laranja)
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfEmpresaCard({
-    required String titulo,
-    required List<(String, String)> linhas,
-  }) {
-    return pw.Container(
+    // Sub-titulo de diagnostico
+    pw.Widget diagHeader(String label, PdfColor cor) => pw.Container(
+      width: double.infinity,
+      margin: const pw.EdgeInsets.only(bottom: 3),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: pw.BoxDecoration(
+        color: PdfColor(cor.red, cor.green, cor.blue, 0.1),
+        borderRadius: pw.BorderRadius.circular(3),
+      ),
+      child: pw.Text(label, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: cor)),
+    );
+
+    // Item de diagnostico
+    pw.Widget diagItem(String sym, String txt, PdfColor cor) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2, left: 4),
+      child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('$sym ', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: cor)),
+        pw.Expanded(child: pw.Text(txt, style: const pw.TextStyle(fontSize: 7, color: grey6))),
+      ]),
+    );
+
+    // Bullet simples
+    pw.Widget bullet(String txt) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2),
+      child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Container(
+          width: 4, height: 4,
+          margin: const pw.EdgeInsets.only(top: 2, right: 5),
+          decoration: const pw.BoxDecoration(color: navy, shape: pw.BoxShape.circle),
+        ),
+        pw.Expanded(child: pw.Text(txt, style: const pw.TextStyle(fontSize: 7, color: grey6))),
+      ]),
+    );
+
+    // ── 5. CABECALHO ──────────────────────────────────────────────────────
+    pw.Widget header(pw.Context ctx) => pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.fromLTRB(22, 12, 22, 12),
+      color: navy,
+      child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+        // Logo: empresa ou icone padrao
+        logoExec != null
+          ? pw.Container(
+              width: 44, height: 44,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: orange, width: 1.5),
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.ClipRRect(
+                horizontalRadius: 5, verticalRadius: 5,
+                child: pw.Image(logoExec!, fit: pw.BoxFit.cover, width: 44, height: 44),
+              ),
+            )
+          : pw.Container(
+              width: 44, height: 44,
+              decoration: pw.BoxDecoration(color: orange, borderRadius: pw.BorderRadius.circular(6)),
+              child: pw.Center(
+                child: pw.Container(
+                  width: 20, height: 20,
+                  child: pw.CustomPaint(painter: (canvas, size) {
+                    canvas.setFillColor(white);
+                    final w = size.x; final h = size.y;
+                    canvas.moveTo(w * 0.65, 0);
+                    canvas.lineTo(w * 0.28, h * 0.5);
+                    canvas.lineTo(w * 0.5,  h * 0.5);
+                    canvas.lineTo(w * 0.35, h);
+                    canvas.lineTo(w * 0.72, h * 0.48);
+                    canvas.lineTo(w * 0.5,  h * 0.48);
+                    canvas.lineTo(w * 0.65, 0);
+                    canvas.fillPath();
+                  }),
+                ),
+              ),
+            ),
+        pw.SizedBox(width: 12),
+        pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text('QUADRO MASTER',
+            style: pw.TextStyle(color: white, fontSize: 13, fontWeight: pw.FontWeight.bold, letterSpacing: 1.5)),
+          pw.Text('ABNT NBR 5410',
+            style: pw.TextStyle(color: orange, fontSize: 8, fontWeight: pw.FontWeight.bold, letterSpacing: 1.0)),
+          pw.SizedBox(height: 4),
+          pw.Text('LAUDO TECNICO DE DIMENSIONAMENTO DE QUADRO ELETRICO',
+            style: pw.TextStyle(color: const PdfColor(1, 1, 1, 0.8), fontSize: 9, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            '${projeto.nome} | ${projeto.tipoQuadro.label} | ${_numFasesShort(projeto.numFases)}',
+            style: const pw.TextStyle(color: orange, fontSize: 8),
+            overflow: pw.TextOverflow.clip,
+          ),
+        ])),
+        pw.SizedBox(width: 12),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          decoration: pw.BoxDecoration(border: pw.Border.all(color: orange, width: 1.2), borderRadius: pw.BorderRadius.circular(4)),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+            _hdrRow('Data', now, grey4, white),
+            _hdrRow('Revisao', '00', grey4, white),
+            _hdrRow('Norma', 'NBR 5410', grey4, white),
+            _hdrRow('Pagina', '${ctx.pageNumber}/${ctx.pagesCount}', grey4, white),
+          ]),
+        ),
+      ]),
+    );
+
+    // ── 6. RODAPE ─────────────────────────────────────────────────────────
+    pw.Widget footer(pw.Context ctx) => pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+      color: navy,
+      child: pw.Row(children: [
+        pw.Container(
+          width: 18, height: 18,
+          decoration: pw.BoxDecoration(color: orange, borderRadius: pw.BorderRadius.circular(3)),
+          child: pw.Center(child: pw.Text('Q', style: pw.TextStyle(color: white, fontSize: 9, fontWeight: pw.FontWeight.bold))),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Text('Quadro Master', style: pw.TextStyle(color: white, fontSize: 7, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(width: 4),
+        pw.Expanded(child: pw.Text(
+          '| ABNT NBR 5410:2004 | NR-10 | IEC 60364 | Documento gerado automaticamente',
+          style: const pw.TextStyle(fontSize: 7, color: grey4),
+        )),
+        pw.Container(
+          width: 26, height: 26,
+          decoration: pw.BoxDecoration(color: white, borderRadius: pw.BorderRadius.circular(2)),
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.all(3),
+            child: pw.GridView(crossAxisCount: 4,
+              children: List.generate(16, (_) => pw.Container(margin: const pw.EdgeInsets.all(0.3), color: navy)),
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Text('Pag. ${ctx.pageNumber}/${ctx.pagesCount}',
+          style: pw.TextStyle(fontSize: 7, color: white, fontWeight: pw.FontWeight.bold)),
+      ]),
+    );
+
+    // ── 7. CARD EMPRESA (sem logo) ────────────────────────────────────────
+    pw.Widget empresaCard(String titulo, List<(String, String)> linhas) => pw.Container(
       padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
-        color: _grey50,
+        color: grey50,
         borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border(left: const pw.BorderSide(color: _orange, width: 3)),
+        border: pw.Border(left: const pw.BorderSide(color: orange, width: 3)),
       ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Row(children: [
-            pw.Container(width: 3, height: 8, color: _orange),
-            pw.SizedBox(width: 4),
-            pw.Text(titulo, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _orange)),
-          ]),
-          pw.SizedBox(height: 5),
-          if (linhas.isEmpty)
-            pw.Text('(nao configurado)', style: const pw.TextStyle(fontSize: 7, color: _grey600))
-          else
-            ...linhas.map((l) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 2),
-              child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.SizedBox(width: 62, child: pw.Text(l.$1,
-                  style: const pw.TextStyle(fontSize: 7, color: _grey600))),
-                pw.Expanded(child: pw.Text(l.$2,
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black))),
-              ]),
-            )),
-        ],
-      ),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Row(children: [
+          pw.Container(width: 3, height: 8, color: orange),
+          pw.SizedBox(width: 4),
+          pw.Text(titulo, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: orange)),
+        ]),
+        pw.SizedBox(height: 5),
+        if (linhas.isEmpty)
+          pw.Text('(nao configurado)', style: const pw.TextStyle(fontSize: 7, color: grey6))
+        else
+          ...linhas.map((l) => pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 2),
+            child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.SizedBox(width: 62, child: pw.Text(l.$1, style: const pw.TextStyle(fontSize: 7, color: grey6))),
+              pw.Expanded(child: pw.Text(l.$2, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: black))),
+            ]),
+          )),
+      ]),
     );
-  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Dados gerais — banda de 7 pílulas com ícone
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfDadosGerais(String now) {
-    final items = [
+    // ── 8. DADOS GERAIS (7 pilulas) ───────────────────────────────────────
+    final dadosItens = [
       ('Projeto', projeto.nome),
       ('Tipo', projeto.tipoQuadro.label),
       ('Sistema', _numFasesShort(projeto.numFases)),
       ('Tensao', '${projeto.tensao.valor.toStringAsFixed(0)} V'),
-      ('Frequencia', '60 Hz'),
+      ('Freq.', '60 Hz'),
       ('Data', now),
       ('Local', projeto.contratante.cidade.isNotEmpty ? projeto.contratante.cidade : 'N/D'),
     ];
-    return pw.Row(
-      children: items.map((item) => pw.Expanded(
-        child: pw.Container(
-          margin: const pw.EdgeInsets.only(right: 4),
-          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-          decoration: pw.BoxDecoration(
-            color: _grey50,
-            borderRadius: pw.BorderRadius.circular(4),
-            border: pw.Border(left: const pw.BorderSide(color: _orange, width: 2)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(item.$1, style: const pw.TextStyle(fontSize: 6, color: _grey600)),
-              pw.Text(item.$2, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _black),
-                overflow: pw.TextOverflow.clip),
-            ],
-          ),
+    pw.Widget dadosGerais() => pw.Row(
+      children: dadosItens.map((it) => pw.Expanded(child: pw.Container(
+        margin: const pw.EdgeInsets.only(right: 4),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+        decoration: pw.BoxDecoration(
+          color: grey50, borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border(left: const pw.BorderSide(color: orange, width: 2)),
         ),
-      )).toList(),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text(it.$1, style: const pw.TextStyle(fontSize: 6, color: grey6)),
+          pw.Text(it.$2, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: black),
+            overflow: pw.TextOverflow.clip),
+        ]),
+      ))).toList(),
     );
-  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Painel Resumo: 7 cards (linha 1) + 6 indicadores de status (linha 2)
-  // Inclui gauge circular do índice geral
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfPainelResumo(ResultadoProjeto r) {
-    PdfColor cor(String s) {
-      switch (s) { case 'ok': return _green; case 'warn': return _yellow; default: return _red; }
-    }
+    // ── 9. PAINEL RESUMO ──────────────────────────────────────────────────
+    pw.Widget painelResumo() {
+      PdfColor cor(String s) => s == 'ok' ? green : s == 'warn' ? yellow : red;
 
-    // Linha 1: 7 cards de métricas + gauge do índice
-    final topCards = [
-      ('P. Instalada', '${r.totalPotenciaAtiva.toStringAsFixed(1)} kW', cor(r.totalPotenciaAtiva > 0 ? 'ok' : 'warn')),
-      ('P. Demandada', '${r.totalPotenciaDemandada.toStringAsFixed(1)} kW', _orange),
-      ('I. Projeto', '${r.correnteProjeto.toStringAsFixed(1)} A', cor(r.utilizacaoDisjuntor > 95 ? 'error' : r.utilizacaoDisjuntor > 85 ? 'warn' : 'ok')),
-      ('Disj. Geral', '${r.disjuntorPolos}P x ${r.disjuntorGeral}A', cor(r.classificacaoDisjuntor == ClassificacaoDisjuntor.critica ? 'error' : r.classificacaoDisjuntor == ClassificacaoDisjuntor.alta ? 'warn' : 'ok')),
-      ('FP Medio', r.fatorPotenciaMedio.toStringAsFixed(3), cor(r.fatorPotenciaMedio >= 0.92 ? 'ok' : r.fatorPotenciaMedio >= 0.85 ? 'warn' : 'error')),
-      ('Circuitos', '${r.numCircuitos}', _navy),
-      ('Modulos', '${r.modulosUtilizados}/${r.modulosDisponiveis}', cor(r.percentOcupacao < 80 ? 'ok' : r.percentOcupacao < 90 ? 'warn' : 'error')),
-    ];
+      final topCards = [
+        ('P. Instalada', '${resultado.totalPotenciaAtiva.toStringAsFixed(1)} kW',
+          cor(resultado.totalPotenciaAtiva > 0 ? 'ok' : 'warn')),
+        ('P. Demandada', '${resultado.totalPotenciaDemandada.toStringAsFixed(1)} kW', orange),
+        ('I. Projeto',   '${resultado.correnteProjeto.toStringAsFixed(1)} A',
+          cor(resultado.utilizacaoDisjuntor > 95 ? 'error' : resultado.utilizacaoDisjuntor > 85 ? 'warn' : 'ok')),
+        ('Disj. Geral',  '${resultado.disjuntorPolos}P x ${resultado.disjuntorGeral}A',
+          cor(resultado.classificacaoDisjuntor == ClassificacaoDisjuntor.critica ? 'error'
+            : resultado.classificacaoDisjuntor == ClassificacaoDisjuntor.alta ? 'warn' : 'ok')),
+        ('FP Medio',     resultado.fatorPotenciaMedio.toStringAsFixed(3),
+          cor(resultado.fatorPotenciaMedio >= 0.92 ? 'ok' : resultado.fatorPotenciaMedio >= 0.85 ? 'warn' : 'error')),
+        ('Circuitos',    '${resultado.numCircuitos}', navy),
+        ('Modulos',      '${resultado.modulosUtilizados}/${resultado.modulosDisponiveis}',
+          cor(resultado.percentOcupacao < 80 ? 'ok' : resultado.percentOcupacao < 90 ? 'warn' : 'error')),
+      ];
 
-    // Linha 2: 6 indicadores de status
-    final bottomCards = [
-      ('Balanc.', r.classificacaoBalanceamento.label, cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
-      ('Desbal.%', '${r.desbalanceamentoPercent.toStringAsFixed(1)}%', cor(r.desbalanceamentoPercent <= 5 ? 'ok' : r.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
-      ('Res.Quadro', '${r.percentReservaQuadro.toStringAsFixed(0)}%', cor(r.percentReservaQuadro >= 20 ? 'ok' : r.percentReservaQuadro >= 10 ? 'warn' : 'error')),
-      ('Res.Carga', '${r.percentReservaCarga.toStringAsFixed(0)}%', cor(r.percentReservaCarga >= 20 ? 'ok' : r.percentReservaCarga >= 15 ? 'warn' : 'error')),
-      ('Queda V.', '${r.quedaTensaoMax.toStringAsFixed(1)}%', cor(r.quedaTensaoMax <= 4 ? 'ok' : r.quedaTensaoMax <= 7 ? 'warn' : 'error')),
-      ('Cap.FP', r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'OK', r.necessitaCorrecaoFP ? _yellow : _green),
-    ];
+      final botCards = [
+        ('Balanceam.',   resultado.classificacaoBalanceamento.label,
+          cor(resultado.desbalanceamentoPercent <= 5 ? 'ok' : resultado.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
+        ('Desbal.%',     '${resultado.desbalanceamentoPercent.toStringAsFixed(1)}%',
+          cor(resultado.desbalanceamentoPercent <= 5 ? 'ok' : resultado.desbalanceamentoPercent <= 10 ? 'warn' : 'error')),
+        ('Res.Quadro',   '${resultado.percentReservaQuadro.toStringAsFixed(0)}%',
+          cor(resultado.percentReservaQuadro >= 20 ? 'ok' : resultado.percentReservaQuadro >= 10 ? 'warn' : 'error')),
+        ('Res.Carga',    '${resultado.percentReservaCarga.toStringAsFixed(0)}%',
+          cor(resultado.percentReservaCarga >= 20 ? 'ok' : resultado.percentReservaCarga >= 15 ? 'warn' : 'error')),
+        ('Queda V.',     '${resultado.quedaTensaoMax.toStringAsFixed(1)}%',
+          cor(resultado.quedaTensaoMax <= 4 ? 'ok' : resultado.quedaTensaoMax <= 7 ? 'warn' : 'error')),
+        ('Cap.FP',       resultado.necessitaCorrecaoFP
+          ? '${resultado.capacitorKvar.toStringAsFixed(1)} kVAr' : 'OK',
+          resultado.necessitaCorrecaoFP ? yellow : green),
+      ];
 
-    return pw.Column(children: [
-      // Linha 1: cards de métricas
-      pw.Row(children: [
-        ...topCards.map((c) => pw.Expanded(
-          child: pw.Container(
-            margin: const pw.EdgeInsets.only(right: 5, bottom: 5),
+      // Gauge do indice geral
+      final igCor = resultado.indiceGeral >= 75 ? green : resultado.indiceGeral >= 45 ? yellow : red;
+      final gauge = pw.Container(
+        width: 48, height: 48,
+        decoration: pw.BoxDecoration(
+          color: white, shape: pw.BoxShape.circle,
+          border: pw.Border.all(color: igCor, width: 2.5),
+        ),
+        child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: [
+          pw.Text(resultado.indiceGeral.toStringAsFixed(0),
+            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: igCor)),
+          pw.Text('/100', style: const pw.TextStyle(fontSize: 5.5, color: grey6)),
+          pw.Text(resultado.classificacaoIndice.label,
+            style: pw.TextStyle(fontSize: 4.5, fontWeight: pw.FontWeight.bold, color: igCor),
+            textAlign: pw.TextAlign.center),
+        ]),
+      );
+
+      return pw.Column(children: [
+        // Linha 1: 7 cards + gauge
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+          ...topCards.map((c) => pw.Expanded(child: pw.Container(
+            margin: const pw.EdgeInsets.only(right: 4, bottom: 5),
             padding: const pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(
-              color: _white,
-              borderRadius: pw.BorderRadius.circular(4),
-              border: pw.Border(top: pw.BorderSide(color: c.$3, width: 2)),
-              boxShadow: [pw.BoxShadow(color: const PdfColor(0, 0, 0, 0.05), blurRadius: 3)],
+              color: white, borderRadius: pw.BorderRadius.circular(4),
+              border: pw.Border(top: pw.BorderSide(color: c.$3, width: 2.5)),
+              boxShadow: [pw.BoxShadow(color: const PdfColor(0, 0, 0, 0.06), blurRadius: 3)],
             ),
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text(c.$2, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: c.$3)),
+              pw.Text(c.$2, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: c.$3)),
               pw.SizedBox(height: 1),
-              pw.Text(c.$1, style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
+              pw.Text(c.$1, style: const pw.TextStyle(fontSize: 6, color: grey6)),
             ]),
-          ),
-        )),
-        // Gauge circular do índice geral
-        pw.SizedBox(width: 5),
-        _pdfGaugeCircular(r.indiceGeral, r.classificacaoIndice.label),
-      ]),
-      // Linha 2: indicadores de status
-      pw.Row(children: bottomCards.map((c) => pw.Expanded(
-        child: pw.Container(
-          margin: const pw.EdgeInsets.only(right: 5),
-          padding: const pw.EdgeInsets.all(6),
+          ))),
+          pw.SizedBox(width: 4),
+          gauge,
+        ]),
+        // Linha 2: 6 indicadores de status
+        pw.Row(children: botCards.map((c) => pw.Expanded(child: pw.Container(
+          margin: const pw.EdgeInsets.only(right: 4),
+          padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
           decoration: pw.BoxDecoration(
             color: PdfColor(c.$3.red, c.$3.green, c.$3.blue, 0.08),
             borderRadius: pw.BorderRadius.circular(4),
-            border: pw.Border.all(color: PdfColor(c.$3.red, c.$3.green, c.$3.blue, 0.2), width: 0.5),
+            border: pw.Border.all(color: PdfColor(c.$3.red, c.$3.green, c.$3.blue, 0.25), width: 0.5),
           ),
           child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: [
-            // Circulo de status — width == height garante circulo perfeito
-            pw.Container(
-              width: 8, height: 8,
-              decoration: pw.BoxDecoration(color: c.$3, shape: pw.BoxShape.circle),
-            ),
+            pw.Container(width: 8, height: 8,
+              decoration: pw.BoxDecoration(color: c.$3, shape: pw.BoxShape.circle)),
             pw.SizedBox(height: 3),
-            pw.Text(c.$2, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: c.$3), textAlign: pw.TextAlign.center),
+            pw.Text(c.$2, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: c.$3),
+              textAlign: pw.TextAlign.center),
             pw.SizedBox(height: 1),
-            pw.Text(c.$1, style: const pw.TextStyle(fontSize: 5.5, color: _grey600), textAlign: pw.TextAlign.center),
+            pw.Text(c.$1, style: const pw.TextStyle(fontSize: 5.5, color: grey6),
+              textAlign: pw.TextAlign.center),
           ]),
+        ))).toList()),
+      ]);
+    }
+
+    // ── 10. DISTRIBUICAO DE CARGAS ────────────────────────────────────────
+    pw.Widget distCargas() {
+      final r = resultado;
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          color: grey50, borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border(left: const pw.BorderSide(color: orange, width: 3)),
         ),
-      )).toList()),
-    ]);
-  }
-
-  // Gauge circular para índice geral
-  pw.Widget _pdfGaugeCircular(double indice, String label) {
-    final PdfColor cor;
-    if (indice >= 75) { cor = _green; }
-    else if (indice >= 45) { cor = _yellow; }
-    else { cor = _red; }
-
-    return pw.Container(
-      width: 48, height: 48,
-      decoration: pw.BoxDecoration(
-        color: _white,
-        shape: pw.BoxShape.circle,
-        border: pw.Border.all(color: cor, width: 2.5),
-        boxShadow: [pw.BoxShadow(color: PdfColor(cor.red, cor.green, cor.blue, 0.15), blurRadius: 4)],
-      ),
-      child: pw.Column(
-        mainAxisAlignment: pw.MainAxisAlignment.center,
-        children: [
-          pw.Text(indice.toStringAsFixed(0), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: cor)),
-          pw.Text('/100', style: const pw.TextStyle(fontSize: 6, color: _grey600)),
-          pw.SizedBox(height: 1),
-          pw.Text(label, style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: cor), textAlign: pw.TextAlign.center),
-        ],
-      ),
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Distribuição de cargas — tabela clara sem LayoutBuilder
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfDistribuicaoCargas(ResultadoProjeto r) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: _grey50,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border(left: const pw.BorderSide(color: _orange, width: 3)),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Row(children: [
-            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: _orange, shape: pw.BoxShape.circle)),
+            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: orange, shape: pw.BoxShape.circle)),
             pw.SizedBox(width: 5),
-            pw.Text('Distribuicao por Categoria',
-              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
+            pw.Text('Distribuicao por Categoria', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navy)),
           ]),
           pw.SizedBox(height: 6),
           if (r.distribuicaoCategorias.isEmpty)
-            pw.Text('Sem dados', style: const pw.TextStyle(fontSize: 7, color: _grey600))
-          else ...[         
-            // Cabeçalho da tabela
+            pw.Text('Sem dados', style: const pw.TextStyle(fontSize: 7, color: grey6))
+          else ...[
             pw.Container(
               padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-              decoration: const pw.BoxDecoration(color: _navy),
+              decoration: const pw.BoxDecoration(color: navy),
               child: pw.Row(children: [
-                pw.Expanded(child: pw.Text('Categoria',
-                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white))),
-                pw.SizedBox(width: 35, child: pw.Text('kW',
-                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
-                  textAlign: pw.TextAlign.right)),
-                pw.SizedBox(width: 35, child: pw.Text('%',
-                  style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
-                  textAlign: pw.TextAlign.right)),
+                pw.Expanded(child: pw.Text('Categoria', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white))),
+                pw.SizedBox(width: 35, child: pw.Text('kW', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white), textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 30, child: pw.Text('%', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white), textAlign: pw.TextAlign.right)),
               ]),
             ),
             ...r.distribuicaoCategorias.take(6).toList().asMap().entries.map((e) {
               final cat = e.value;
               final isOdd = e.key.isOdd;
-              final PdfColor barCor;
-              if (cat.percentualTotal >= 50) { barCor = _orange; }
-              else if (cat.percentualTotal >= 20) { barCor = _navy; }
-              else { barCor = _green; }
+              PdfColor barCor = cat.percentualTotal >= 50 ? orange : cat.percentualTotal >= 20 ? navy : green;
               return pw.Container(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                decoration: pw.BoxDecoration(
-                  color: isOdd ? const PdfColor(0.94, 0.94, 0.94) : _white,
-                ),
+                decoration: pw.BoxDecoration(color: isOdd ? const PdfColor(0.94, 0.94, 0.94) : white),
                 child: pw.Row(children: [
-                  pw.Expanded(child: pw.Text(cat.nome,
-                    style: const pw.TextStyle(fontSize: 7, color: _black))),
+                  pw.Expanded(child: pw.Text(cat.nome, style: const pw.TextStyle(fontSize: 7, color: black))),
                   pw.SizedBox(width: 35, child: pw.Text(
                     (cat.percentualTotal * r.totalPotenciaAtiva / 100).toStringAsFixed(2),
-                    style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black),
+                    style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: black),
                     textAlign: pw.TextAlign.right)),
-                  pw.SizedBox(width: 35, child: pw.Text(
+                  pw.SizedBox(width: 30, child: pw.Text(
                     '${cat.percentualTotal.toStringAsFixed(1)}%',
                     style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: barCor),
                     textAlign: pw.TextAlign.right)),
@@ -1166,191 +983,162 @@ class RelatorioScreen extends StatelessWidget {
             }),
             pw.Container(
               padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-              decoration: const pw.BoxDecoration(
-                border: pw.Border(top: pw.BorderSide(color: _orange, width: 0.8)),
-              ),
+              decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: orange, width: 0.8))),
               child: pw.Row(children: [
-                pw.Expanded(child: pw.Text('TOTAL',
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy))),
-                pw.SizedBox(width: 35, child: pw.Text(
-                  r.totalPotenciaAtiva.toStringAsFixed(2),
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy),
-                  textAlign: pw.TextAlign.right)),
-                pw.SizedBox(width: 35, child: pw.Text('100%',
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy),
-                  textAlign: pw.TextAlign.right)),
+                pw.Expanded(child: pw.Text('TOTAL', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: navy))),
+                pw.SizedBox(width: 35, child: pw.Text(r.totalPotenciaAtiva.toStringAsFixed(2),
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: navy), textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 30, child: pw.Text('100%',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: navy), textAlign: pw.TextAlign.right)),
               ]),
             ),
           ],
-        ],
-      ),
-    );
-  }
+        ]),
+      );
+    }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Balanceamento de fases — tabela A/B/C limpa sem LayoutBuilder
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfBalanceamentoFases(ResultadoProjeto r) {
-    // ignore: unused_local_variable
-    final maxI = [r.correnteFaseA, r.correnteFaseB, r.correnteFaseC].reduce(max);
-    final fases = [
-      ('Fase A', r.correnteFaseA, const PdfColor(1, 0.2, 0.2)), // vermelho
-      ('Fase B', r.correnteFaseB, const PdfColor(0.2, 0.6, 1.0)), // azul
-      ('Fase C', r.correnteFaseC, const PdfColor(1, 0.65, 0.0)), // amarelo
-    ];
-    final desbalOk = r.desbalanceamentoPercent <= 5;
-
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: _grey50,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border(left: const pw.BorderSide(color: _navy, width: 3)),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+    // ── 11. BALANCEAMENTO DE FASES ────────────────────────────────────────
+    pw.Widget balancFases() {
+      final r = resultado;
+      final maxI = [r.correnteFaseA, r.correnteFaseB, r.correnteFaseC].reduce(max);
+      final fases = [
+        ('Fase A', r.correnteFaseA, const PdfColor(1, 0.2, 0.2)),
+        ('Fase B', r.correnteFaseB, const PdfColor(0.2, 0.6, 1.0)),
+        ('Fase C', r.correnteFaseC, const PdfColor(1, 0.65, 0.0)),
+      ];
+      final desbalOk = r.desbalanceamentoPercent <= 5;
+      final boxCor = desbalOk ? green : yellow;
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          color: grey50, borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border(left: const pw.BorderSide(color: navy, width: 3)),
+        ),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Row(children: [
-            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: _navy, shape: pw.BoxShape.circle)),
+            pw.Container(width: 8, height: 8, decoration: const pw.BoxDecoration(color: navy, shape: pw.BoxShape.circle)),
             pw.SizedBox(width: 5),
-            pw.Text('Balanceamento das Fases',
-              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _navy)),
+            pw.Text('Balanceamento das Fases', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: navy)),
           ]),
           pw.SizedBox(height: 6),
-          // Tabela de fases - sem LayoutBuilder
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-            decoration: const pw.BoxDecoration(color: _navy),
+            decoration: const pw.BoxDecoration(color: navy),
             child: pw.Row(children: [
-              pw.SizedBox(width: 45, child: pw.Text('Fase',
-                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white))),
-              pw.Expanded(child: pw.Text('Corrente',
-                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
-                textAlign: pw.TextAlign.right)),
-              pw.SizedBox(width: 40, child: pw.Text('% Max.',
-                style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _white),
-                textAlign: pw.TextAlign.right)),
+              pw.SizedBox(width: 45, child: pw.Text('Fase', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white))),
+              pw.Expanded(child: pw.Text('Corrente', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white), textAlign: pw.TextAlign.right)),
+              pw.SizedBox(width: 38, child: pw.Text('% Max.', style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: white), textAlign: pw.TextAlign.right)),
             ]),
           ),
           ...fases.asMap().entries.map((e) {
             final f = e.value;
             final pct = maxI > 0 ? (f.$2 / maxI * 100).clamp(0.0, 100.0) : 0.0;
-            final isOdd = e.key.isOdd;
             return pw.Container(
               padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-              decoration: pw.BoxDecoration(
-                color: isOdd ? const PdfColor(0.94, 0.94, 0.94) : _white,
-              ),
+              decoration: pw.BoxDecoration(color: e.key.isOdd ? const PdfColor(0.94, 0.94, 0.94) : white),
               child: pw.Row(children: [
-                pw.Container(
-                  width: 8, height: 8,
-                  decoration: pw.BoxDecoration(color: f.$3, shape: pw.BoxShape.circle),
-                ),
+                pw.Container(width: 8, height: 8, decoration: pw.BoxDecoration(color: f.$3, shape: pw.BoxShape.circle)),
                 pw.SizedBox(width: 4),
-                pw.SizedBox(width: 33, child: pw.Text(f.$1,
-                  style: const pw.TextStyle(fontSize: 7, color: _black))),
+                pw.SizedBox(width: 33, child: pw.Text(f.$1, style: const pw.TextStyle(fontSize: 7, color: black))),
                 pw.Expanded(child: pw.Text('${f.$2.toStringAsFixed(2)} A',
-                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: f.$3),
-                  textAlign: pw.TextAlign.right)),
-                pw.SizedBox(width: 40, child: pw.Text('${pct.toStringAsFixed(0)}%',
-                  style: const pw.TextStyle(fontSize: 7, color: _grey600),
-                  textAlign: pw.TextAlign.right)),
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: f.$3), textAlign: pw.TextAlign.right)),
+                pw.SizedBox(width: 38, child: pw.Text('${pct.toStringAsFixed(0)}%',
+                  style: const pw.TextStyle(fontSize: 7, color: grey6), textAlign: pw.TextAlign.right)),
               ]),
             );
           }),
           pw.SizedBox(height: 5),
-          // Box de stats
           pw.Container(
             padding: const pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(
-              color: PdfColor(
-                desbalOk ? _green.red : _yellow.red,
-                desbalOk ? _green.green : _yellow.green,
-                desbalOk ? _green.blue : _yellow.blue,
-                0.12,
-              ),
+              color: PdfColor(boxCor.red, boxCor.green, boxCor.blue, 0.12),
               borderRadius: pw.BorderRadius.circular(3),
-              border: pw.Border.all(color: desbalOk ? _green : _yellow, width: 0.5),
+              border: pw.Border.all(color: boxCor, width: 0.5),
             ),
             child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text('Desbalanceamento', style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
+                pw.Text('Desbalanceamento', style: const pw.TextStyle(fontSize: 6.5, color: grey6)),
                 pw.Text('${r.desbalanceamentoPercent.toStringAsFixed(1)}%',
-                  style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold,
-                    color: desbalOk ? _green : _yellow)),
+                  style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: boxCor)),
               ]),
               pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                pw.Text('Classificacao', style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
+                pw.Text('Classificacao', style: const pw.TextStyle(fontSize: 6.5, color: grey6)),
                 pw.Text(r.classificacaoBalanceamento.label,
-                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold,
-                    color: desbalOk ? _green : _yellow)),
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: boxCor)),
               ]),
             ]),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Tabela de circuitos — 11 colunas com dots coloridos
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfTabelaCircuitos(List<Carga> cargas) {
-    if (cargas.isEmpty) {
-      return pw.Text('Nenhum circuito ativo.', style: const pw.TextStyle(fontSize: 8, color: _grey600));
+        ]),
+      );
     }
-    return pw.TableHelper.fromTextArray(
-      headers: ['#', 'Descricao', 'Tipo', 'Lig.', 'Fase', 'P(W)', 'I(A)', 'Disj.(A)', 'Cabo(mm2)', 'dV(%)', 'Status'],
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: _white),
-      headerDecoration: const pw.BoxDecoration(color: _orange),
-      data: cargas.asMap().entries.map((e) {
-        final c = e.value;
-        final dvOk = c.quedaTensaoPercent <= 4;
-        final status = dvOk ? '[OK]' : c.quedaTensaoPercent <= 7 ? '[Atencao]' : '[Critico]';
-        return [
-          '${e.key + 1}',
-          c.descricao,
-          _tipoShort(c.tipo, descricao: c.descricao, notas: c.notas),
-          _ligacaoShort(c.ligacao),
-          _faseStr(c.fase),
-          c.potenciaAtiva.toStringAsFixed(0),
-          c.corrente.toStringAsFixed(1),
-          '${c.disjuntorSugerido}',
-          '${c.condutorSugerido}',
-          c.quedaTensaoPercent.toStringAsFixed(1),
-          status,
-        ];
-      }).toList(),
-      cellStyle: const pw.TextStyle(fontSize: 7),
-      cellAlignments: {
-        0: pw.Alignment.center, 4: pw.Alignment.center,
-        5: pw.Alignment.centerRight, 6: pw.Alignment.centerRight,
-        7: pw.Alignment.center, 8: pw.Alignment.center,
-        9: pw.Alignment.center, 10: pw.Alignment.center,
-      },
-      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey50),
-      border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey300),
-    );
-  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Diagnóstico técnico (conformidades, problemas, recomendações)
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfDiagnostico(ResultadoProjeto r) {
-    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      if (r.diagnosticoConformes.isNotEmpty) ...[
-        _pdfDiagSubHeader('CONFORMIDADES', _green),
-        ...r.diagnosticoConformes.map((c) => _pdfDiagItem('[OK]', c, _green)),
+    // ── 12. TABELA DE CIRCUITOS ───────────────────────────────────────────
+    pw.Widget tabelaCircuitos() {
+      if (cargas.isEmpty) return pw.Text('Nenhum circuito ativo.', style: const pw.TextStyle(fontSize: 8, color: grey6));
+      return pw.TableHelper.fromTextArray(
+        headers: ['#', 'Descricao', 'Tipo', 'Lig.', 'Fase', 'P(W)', 'I(A)', 'Disj(A)', 'Cabo(mm2)', 'dV(%)', 'Status'],
+        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5, color: white),
+        headerDecoration: const pw.BoxDecoration(color: orange),
+        data: cargas.asMap().entries.map((e) {
+          final c = e.value;
+          final dvOk = c.quedaTensaoPercent <= 4;
+          final status = dvOk ? 'OK' : c.quedaTensaoPercent <= 7 ? 'Atencao' : 'Critico';
+          return [
+            '${e.key + 1}',
+            c.descricao,
+            _tipoShort(c.tipo, descricao: c.descricao, notas: c.notas),
+            _ligacaoShort(c.ligacao),
+            _faseStr(c.fase),
+            c.potenciaAtiva.toStringAsFixed(0),
+            c.corrente.toStringAsFixed(1),
+            '${c.disjuntorSugerido}',
+            '${c.condutorSugerido}',
+            c.quedaTensaoPercent.toStringAsFixed(1),
+            status,
+          ];
+        }).toList(),
+        cellStyle: const pw.TextStyle(fontSize: 6.5),
+        cellAlignments: {
+          0: pw.Alignment.center, 2: pw.Alignment.center, 3: pw.Alignment.center, 4: pw.Alignment.center,
+          5: pw.Alignment.centerRight, 6: pw.Alignment.centerRight,
+          7: pw.Alignment.center, 8: pw.Alignment.center, 9: pw.Alignment.center, 10: pw.Alignment.center,
+        },
+        oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey50),
+        border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey300),
+      );
+    }
+
+    // ── 13. MEMORIA DE CALCULO ────────────────────────────────────────────
+    pw.Widget infoCard(List<(String, String)> linhas) => pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      decoration: pw.BoxDecoration(
+        color: grey50, borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: const PdfColor(0.85, 0.85, 0.85), width: 0.5),
+      ),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: linhas.map((l) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 3),
+        child: pw.Row(children: [
+          pw.SizedBox(width: 145, child: pw.Text(l.$1, style: const pw.TextStyle(fontSize: 7.5, color: grey6))),
+          pw.Expanded(child: pw.Text(l.$2, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: black))),
+        ]),
+      )).toList()),
+    );
+
+    // ── 14. DIAGNOSTICO TECNICO ───────────────────────────────────────────
+    pw.Widget diagnostico() => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+      if (resultado.diagnosticoConformes.isNotEmpty) ...[
+        diagHeader('CONFORMIDADES', green),
+        ...resultado.diagnosticoConformes.map((c) => diagItem('[OK]', c, green)),
         pw.SizedBox(height: 4),
       ],
-      if (r.diagnosticoProblemas.isNotEmpty) ...[
-        _pdfDiagSubHeader('PENDENCIAS / PROBLEMAS', _red),
-        ...r.diagnosticoProblemas.map((p) => _pdfDiagItem('[!]', p, _red)),
+      if (resultado.diagnosticoProblemas.isNotEmpty) ...[
+        diagHeader('PENDENCIAS / PROBLEMAS', red),
+        ...resultado.diagnosticoProblemas.map((p) => diagItem('[!] ', p, red)),
         pw.SizedBox(height: 4),
       ],
-      if (r.diagnosticoRecomendacoes.isNotEmpty) ...[
-        _pdfDiagSubHeader('RECOMENDACOES TECNICAS', _yellow),
-        ...r.diagnosticoRecomendacoes.map((rec) => _pdfDiagItem('[>]', rec, _yellow)),
+      if (resultado.diagnosticoRecomendacoes.isNotEmpty) ...[
+        diagHeader('RECOMENDACOES TECNICAS', yellow),
+        ...resultado.diagnosticoRecomendacoes.map((r) => diagItem('[>] ', r, yellow)),
         pw.SizedBox(height: 4),
       ],
       pw.Container(
@@ -1363,213 +1151,243 @@ class RelatorioScreen extends StatelessWidget {
         ),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text('RECOMENDACOES GERAIS - ABNT NBR 5410',
-            style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _navy)),
-          pw.SizedBox(height: 3),
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            _pdfBullet('Manter reserva minima de 20% da capacidade do quadro.'),
-            _pdfBullet('Prever circuitos dedicados para equipamentos acima de 1.000 W.'),
-            _pdfBullet('Instalar DPS (Dispositivo de Protecao contra Surtos) - ABNT NBR 5419.'),
-            _pdfBullet('Revisar periodicamente as protecoes conforme ABNT NBR 5410:2004.'),
-            _pdfBullet('Manter diagrama unifilar atualizado conforme NR-10.'),
-          ]),
+            style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: navy)),
+          pw.SizedBox(height: 4),
+          bullet('Manter reserva minima de 20% da capacidade do quadro.'),
+          bullet('Prever circuitos dedicados para equipamentos acima de 1.000 W.'),
+          bullet('Instalar DPS (Protecao contra Surtos) - ABNT NBR 5419.'),
+          bullet('Revisar periodicamente as protecoes conforme ABNT NBR 5410:2004.'),
+          bullet('Manter diagrama unifilar atualizado conforme NR-10.'),
         ]),
       ),
     ]);
-  }
 
-  pw.Widget _pdfDiagSubHeader(String label, PdfColor cor) => pw.Container(
-    width: double.infinity,
-    margin: const pw.EdgeInsets.only(bottom: 3),
-    padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: pw.BoxDecoration(
-      color: PdfColor(cor.red, cor.green, cor.blue, 0.08),
-      borderRadius: pw.BorderRadius.circular(3),
-    ),
-    child: pw.Text(label, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: cor)),
-  );
+    // ── 15. PAINEIS TECNICOS (3 cards + secao titulo juntos) ──────────────
+    pw.Widget painelTecnico({
+      required String titulo,
+      required String valor,
+      required String subtitulo,
+      required String badge,
+      required bool ok,
+      required List<(String, String)> detalhes,
+    }) {
+      final cor = ok ? green : yellow;
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          color: white, borderRadius: pw.BorderRadius.circular(4),
+          border: pw.Border(bottom: pw.BorderSide(color: cor, width: 3)),
+          boxShadow: [pw.BoxShadow(color: const PdfColor(0, 0, 0, 0.05), blurRadius: 3)],
+        ),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text(titulo, style: const pw.TextStyle(fontSize: 7, color: grey6)),
+          pw.SizedBox(height: 2),
+          pw.Text(valor, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: black)),
+          pw.SizedBox(height: 2),
+          pw.Text(subtitulo, style: const pw.TextStyle(fontSize: 6.5, color: grey6)),
+          pw.SizedBox(height: 4),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: pw.BoxDecoration(
+              color: PdfColor(cor.red, cor.green, cor.blue, 0.12),
+              borderRadius: pw.BorderRadius.circular(8),
+            ),
+            child: pw.Text(badge, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: cor)),
+          ),
+          pw.SizedBox(height: 5),
+          pw.Container(height: 0.5, color: const PdfColor(0.9, 0.9, 0.9)),
+          pw.SizedBox(height: 4),
+          ...detalhes.map((d) => pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 2),
+            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text(d.$1, style: const pw.TextStyle(fontSize: 6.5, color: grey6)),
+              pw.Text(d.$2, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: black)),
+            ]),
+          )),
+        ]),
+      );
+    }
 
-  pw.Widget _pdfDiagItem(String symbol, String text, PdfColor cor) => pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 2, left: 4),
-    child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text('$symbol ', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: cor)),
-      pw.Expanded(child: pw.Text(text, style: const pw.TextStyle(fontSize: 7, color: _grey600))),
-    ]),
-  );
-
-  pw.Widget _pdfBullet(String text) => pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 2),
-    child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Container(
-        width: 4, height: 4,
-        margin: const pw.EdgeInsets.only(top: 2, right: 4),
-        decoration: const pw.BoxDecoration(color: _navy, shape: pw.BoxShape.circle),
-      ),
-      pw.Expanded(child: pw.Text(text, style: const pw.TextStyle(fontSize: 7, color: _grey600))),
-    ]),
-  );
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // 3 Painéis técnicos inferiores: Proteção Geral | Reservas | Correção FP
-  // ──────────────────────────────────────────────────────────────────────────
-  pw.Widget _pdfPaineisTecnicos(ResultadoProjeto r) {
-    final paineis = [
-      _pdfPainelTecnico(
+    pw.Widget paineisTecnicos() => pw.Row(children: [
+      pw.Expanded(child: painelTecnico(
         titulo: 'Protecao Geral',
-        valor: '${r.disjuntorPolos}P x ${r.disjuntorGeral} A',
-        subtitulo: 'Utilizacao: ${r.utilizacaoDisjuntor.toStringAsFixed(0)}%',
-        badge: r.classificacaoDisjuntor.label,
-        ok: r.classificacaoDisjuntor != ClassificacaoDisjuntor.critica,
+        valor:  '${resultado.disjuntorPolos}P x ${resultado.disjuntorGeral} A',
+        subtitulo: 'Utilizacao: ${resultado.utilizacaoDisjuntor.toStringAsFixed(0)}%',
+        badge: resultado.classificacaoDisjuntor.label,
+        ok: resultado.classificacaoDisjuntor != ClassificacaoDisjuntor.critica,
         detalhes: [
-          ('Icc estimada', '${(r.correnteCurtoEstimada * 1000).toStringAsFixed(0)} A'),
-          ('Cap. interrupcao', '${r.capacidadeInterrupcao.toStringAsFixed(0)} kA'),
-          ('Seletividade', r.seletividadeOk ? 'OK' : 'Verificar'),
+          ('Icc estimada', '${(resultado.correnteCurtoEstimada * 1000).toStringAsFixed(0)} A'),
+          ('Cap. interrupcao', '${resultado.capacidadeInterrupcao.toStringAsFixed(0)} kA'),
+          ('Seletividade', resultado.seletividadeOk ? 'OK' : 'Verificar'),
         ],
-      ),
-      _pdfPainelTecnico(
+      )),
+      pw.SizedBox(width: 6),
+      pw.Expanded(child: painelTecnico(
         titulo: 'Reservas e Utilizacao',
-        valor: 'Quadro: ${r.percentReservaQuadro.toStringAsFixed(0)}%',
-        subtitulo: 'Carga: ${r.percentReservaCarga.toStringAsFixed(0)}%',
-        badge: r.percentReservaQuadro >= 20 ? 'Adequada' : 'Atencao',
-        ok: r.percentReservaQuadro >= 20,
+        valor:  'Quadro: ${resultado.percentReservaQuadro.toStringAsFixed(0)}%',
+        subtitulo: 'Carga: ${resultado.percentReservaCarga.toStringAsFixed(0)}%',
+        badge: resultado.percentReservaQuadro >= 20 ? 'Adequada' : 'Atencao',
+        ok: resultado.percentReservaQuadro >= 20,
         detalhes: [
-          ('Modulos livres', '${r.modulosLivres}/${r.modulosDisponiveis}'),
-          ('Ocup. quadro', '${r.percentOcupacao.toStringAsFixed(0)}%'),
-          ('I restante', '${r.correnteRestante.toStringAsFixed(1)} A'),
+          ('Modulos livres', '${resultado.modulosLivres}/${resultado.modulosDisponiveis}'),
+          ('Ocup. quadro', '${resultado.percentOcupacao.toStringAsFixed(0)}%'),
+          ('I restante', '${resultado.correnteRestante.toStringAsFixed(1)} A'),
         ],
-      ),
-      _pdfPainelTecnico(
+      )),
+      pw.SizedBox(width: 6),
+      pw.Expanded(child: painelTecnico(
         titulo: 'Correcao do FP',
-        valor: r.necessitaCorrecaoFP ? '${r.capacitorKvar.toStringAsFixed(1)} kVAr' : 'Nao necessario',
-        subtitulo: 'FP atual: ${r.fatorPotenciaMedio.toStringAsFixed(3)}',
-        badge: r.fatorPotenciaMedio >= 0.92 ? 'Conforme' : 'Corrigir',
-        ok: r.fatorPotenciaMedio >= 0.92,
+        valor:  resultado.necessitaCorrecaoFP
+          ? '${resultado.capacitorKvar.toStringAsFixed(1)} kVAr' : 'Nao necessario',
+        subtitulo: 'FP atual: ${resultado.fatorPotenciaMedio.toStringAsFixed(3)}',
+        badge: resultado.fatorPotenciaMedio >= 0.92 ? 'Conforme' : 'Corrigir',
+        ok: resultado.fatorPotenciaMedio >= 0.92,
         detalhes: [
           ('FP minimo ANEEL', '0,920'),
-          ('Consumo mensal', '${(r.totalPotenciaDemandada * 8 * 22).toStringAsFixed(0)} kWh'),
-          ('Consumo anual', '${(r.totalPotenciaDemandada * 8 * 264).toStringAsFixed(0)} kWh'),
+          ('Consumo mensal', '${(resultado.totalPotenciaDemandada * 8 * 22).toStringAsFixed(0)} kWh'),
+          ('Consumo anual',  '${(resultado.totalPotenciaDemandada * 8 * 264).toStringAsFixed(0)} kWh'),
         ],
-      ),
-    ];
-    return pw.Row(children: paineis.map((p) => pw.Expanded(
-      child: pw.Container(
-        margin: const pw.EdgeInsets.only(right: 6),
-        child: p,
-      ),
-    )).toList());
-  }
+      )),
+    ]);
 
-  pw.Widget _pdfPainelTecnico({
-    required String titulo,
-    required String valor,
-    required String subtitulo,
-    required String badge,
-    required bool ok,
-    required List<(String, String)> detalhes,
-  }) {
-    final cor = ok ? _green : _yellow;
-    return pw.Container(
+    // ── 16. ASSINATURA ────────────────────────────────────────────────────
+    pw.Widget assinatura() => pw.Container(
       padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
-        color: _white,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border(bottom: pw.BorderSide(color: cor, width: 3)),
-        boxShadow: [pw.BoxShadow(color: const PdfColor(0, 0, 0, 0.05), blurRadius: 3)],
-      ),
-      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text(titulo, style: const pw.TextStyle(fontSize: 7, color: _grey600)),
-        pw.SizedBox(height: 2),
-        pw.Text(valor, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _black)),
-        pw.SizedBox(height: 2),
-        pw.Text(subtitulo, style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
-        pw.SizedBox(height: 4),
-        pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: pw.BoxDecoration(
-            color: PdfColor(cor.red, cor.green, cor.blue, 0.12),
-            borderRadius: pw.BorderRadius.circular(8),
-          ),
-          child: pw.Text(badge, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: cor)),
-        ),
-        pw.SizedBox(height: 5),
-        pw.Container(height: 0.5, color: const PdfColor(0.9, 0.9, 0.9)),
-        pw.SizedBox(height: 4),
-        ...detalhes.map((d) => pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 2),
-          child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text(d.$1, style: const pw.TextStyle(fontSize: 6.5, color: _grey600)),
-            pw.Text(d.$2, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: _black)),
-          ]),
-        )),
-      ]),
-    );
-  }
-
-  pw.Widget _pdfInfoCard(List<(String, String)> linhas) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: _grey50,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: const PdfColor(0.85, 0.85, 0.85), width: 0.5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: linhas.map((l) => pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 3),
-          child: pw.Row(children: [
-            pw.SizedBox(width: 150, child: pw.Text(l.$1,
-              style: const pw.TextStyle(fontSize: 7.5, color: _grey600))),
-            pw.Expanded(child: pw.Text(l.$2,
-              style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _black))),
-          ]),
-        )).toList(),
-      ),
-    );
-  }
-
-  pw.Widget _pdfAssinatura(ResultadoProjeto r, String nowFull) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: _grey50,
-        borderRadius: pw.BorderRadius.circular(4),
+        color: grey50, borderRadius: pw.BorderRadius.circular(4),
         border: pw.Border.all(color: const PdfColor(0.85, 0.85, 0.85), width: 0.5),
       ),
       child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text('Responsavel Tecnico: ${projeto.executora.responsavel.isEmpty ? "N/D" : projeto.executora.responsavel}',
+          pw.Text(
+            'Responsavel Tecnico: ${projeto.executora.responsavel.isEmpty ? "N/D" : projeto.executora.responsavel}',
             style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-          pw.Text('${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro.isEmpty ? "N/D" : projeto.executora.registro}',
-            style: const pw.TextStyle(fontSize: 8, color: _grey600)),
+          pw.Text(
+            '${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro.isEmpty ? "N/D" : projeto.executora.registro}',
+            style: const pw.TextStyle(fontSize: 8, color: grey6)),
         ]),
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-          pw.Text('Emitido em: $nowFull',
-            style: const pw.TextStyle(fontSize: 8, color: _grey600)),
-          pw.Text('ABNT NBR 5410:2004 + Em.1:2008 | 60 Hz',
-            style: const pw.TextStyle(fontSize: 8, color: _grey600)),
+          pw.Text('Emitido em: $nowFull', style: const pw.TextStyle(fontSize: 8, color: grey6)),
+          pw.Text('ABNT NBR 5410:2004 + Em.1:2008 | 60 Hz', style: const pw.TextStyle(fontSize: 8, color: grey6)),
         ]),
       ]),
     );
+
+    // ── 17. MONTA A PAGINA ────────────────────────────────────────────────
+    doc.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: pw.EdgeInsets.zero,
+      header: header,
+      footer: footer,
+      build: (ctx) => [
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+
+            // Sec 1 — Empresas
+            secTitle('1', 'IDENTIFICACAO DAS EMPRESAS'),
+            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Expanded(child: empresaCard('EMPRESA EXECUTORA', [
+                if (projeto.executora.razaoSocial.isNotEmpty)  ('Razao Social', projeto.executora.razaoSocial),
+                if (projeto.executora.documento.isNotEmpty)    ('CNPJ/CPF', projeto.executora.documento),
+                if (projeto.executora.registro.isNotEmpty)     (_cargoRegistroLabel(projeto.executora.cargo), projeto.executora.registro),
+                if (projeto.executora.responsavel.isNotEmpty)  ('Responsavel', projeto.executora.responsavel),
+                if (projeto.executora.telefone.isNotEmpty)     ('Telefone', projeto.executora.telefone),
+                if (projeto.executora.email.isNotEmpty)        ('E-mail', projeto.executora.email),
+                if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereco', projeto.executora.enderecoCompleto),
+              ])),
+              pw.SizedBox(width: 10),
+              pw.Expanded(child: empresaCard('EMPRESA CONTRATANTE', [
+                if (projeto.contratante.razaoSocial.isNotEmpty)  ('Razao Social', projeto.contratante.razaoSocial),
+                if (projeto.contratante.documento.isNotEmpty)    ('CNPJ/CPF', projeto.contratante.documento),
+                if (projeto.contratante.responsavel.isNotEmpty)  ('Responsavel', projeto.contratante.responsavel),
+                if (projeto.contratante.telefone.isNotEmpty)     ('Telefone', projeto.contratante.telefone),
+                if (projeto.contratante.email.isNotEmpty)        ('E-mail', projeto.contratante.email),
+                if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Local/Obra', projeto.contratante.enderecoCompleto),
+                if (projeto.contratante.art.isNotEmpty)          ('ART/RRT', projeto.contratante.art),
+              ])),
+            ]),
+            pw.SizedBox(height: 12),
+
+            // Sec 2 — Dados Gerais
+            secTitle('2', 'DADOS GERAIS DO PROJETO'),
+            dadosGerais(),
+            pw.SizedBox(height: 12),
+
+            // Sec 3 — Painel Resumo
+            secTitle('3', 'PAINEL RESUMO'),
+            painelResumo(),
+            pw.SizedBox(height: 12),
+
+            // Sec 4 — Distribuicao + Balanceamento
+            secTitle('4', 'DISTRIBUICAO DE CARGAS E BALANCEAMENTO DE FASES'),
+            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Expanded(child: distCargas()),
+              pw.SizedBox(width: 10),
+              pw.Expanded(child: balancFases()),
+            ]),
+            pw.SizedBox(height: 12),
+
+            // Sec 5 — Tabela de Circuitos
+            secTitle('5', 'DISJUNTORES E CONDUTORES POR CIRCUITO'),
+            tabelaCircuitos(),
+            pw.SizedBox(height: 12),
+
+            // Sec 6 — Memoria de Calculo
+            secTitle('6', 'MEMORIA DE CALCULO - POTENCIAS E CORRENTES'),
+            pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Expanded(child: infoCard([
+                ('Potencia Ativa Total (P)', '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
+                ('Potencia Reativa Total (Q)', '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr'),
+                ('Potencia Aparente (S)', '${resultado.totalPotenciaAparente.toStringAsFixed(3)} kVA'),
+                ('Fator de Potencia Medio', resultado.fatorPotenciaMedio.toStringAsFixed(3)),
+                ('Potencia Demandada (com FD)', '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW'),
+              ])),
+              pw.SizedBox(width: 10),
+              pw.Expanded(child: infoCard([
+                ('Corrente Fase A', '${resultado.correnteFaseA.toStringAsFixed(2)} A'),
+                ('Corrente Fase B', '${resultado.correnteFaseB.toStringAsFixed(2)} A'),
+                ('Corrente Fase C', '${resultado.correnteFaseC.toStringAsFixed(2)} A'),
+                ('Corrente de Neutro', '${resultado.correnteNeutro.toStringAsFixed(2)} A'),
+                ('Corrente Total', '${resultado.correnteTotal.toStringAsFixed(2)} A'),
+                ('Corrente de Projeto (x1,25)', '${resultado.correnteProjeto.toStringAsFixed(2)} A'),
+                ('Desbalanceamento', '${resultado.desbalanceamentoPercent.toStringAsFixed(1)}%'),
+              ])),
+            ]),
+            pw.SizedBox(height: 12),
+
+            // Sec 7 — Diagnostico
+            secTitle('7', 'DIAGNOSTICO TECNICO AUTOMATICO'),
+            diagnostico(),
+            pw.SizedBox(height: 12),
+
+            // Sec 8 — Paineis Tecnicos (titulo + conteudo no mesmo Column)
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              secTitle('8', 'PAINEIS TECNICOS'),
+              paineisTecnicos(),
+            ]),
+            pw.SizedBox(height: 10),
+
+            // Assinatura
+            assinatura(),
+            pw.SizedBox(height: 6),
+          ]),
+        ),
+      ],
+    ));
+
+    await Printing.layoutPdf(onLayout: (fmt) => doc.save());
   }
 
-  Future<void> _compartilhar(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gerando PDF para compartilhar...')),
+  // Helper do cabecalho
+  static pw.Widget _hdrRow(String label, String value, PdfColor lCol, PdfColor vCol) =>
+    pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 0.5),
+      child: pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+        pw.Text('$label: ', style: pw.TextStyle(fontSize: 7, color: lCol)),
+        pw.Text(value, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: vCol)),
+      ]),
     );
-    await _gerarPdf(context);
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Helpers Flutter
-  // ─────────────────────────────────────────────────────────────────────────
-  Color _statusColor(String s) {
-    switch (s) {
-      case 'ok': return AppColors.success;
-      case 'warn': return AppColors.warning;
-      case 'error': return AppColors.error;
-      default: return AppColors.primary;
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

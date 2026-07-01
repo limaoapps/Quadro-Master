@@ -9,7 +9,8 @@ import '../services/cep_service.dart';
 
 class ProjetoDadosScreen extends StatefulWidget {
   final Projeto projeto;
-  const ProjetoDadosScreen({super.key, required this.projeto});
+  final VoidCallback? onSaved;
+  const ProjetoDadosScreen({super.key, required this.projeto, this.onSaved});
 
   @override
   State<ProjetoDadosScreen> createState() => _ProjetoDadosScreenState();
@@ -427,6 +428,7 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Projeto atualizado!'), duration: Duration(seconds: 1)),
       );
+      widget.onSaved?.call();
     }
   }
 }

@@ -29,6 +29,96 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
     super.dispose();
   }
 
+  Widget _sliderReserva() {
+    final prov = context.read<AppProvider>();
+    final reserva = context.select<AppProvider, double>((p) => p.reservaPercent);
+    final corSlider = reserva == 0
+        ? AppColors.textSecondary
+        : reserva <= 15
+            ? AppColors.success
+            : AppColors.primary;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Margem de Reserva para Disjuntor Geral',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: corSlider.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  reserva == 0 ? 'Sem margem' : '+${reserva.toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: corSlider),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Aumenta a corrente de projeto antes de selecionar o disjuntor geral, garantindo folga para ampliações futuras.',
+            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+          ),
+          Slider(
+            value: reserva,
+            min: 0,
+            max: 50,
+            divisions: 10,
+            activeColor: corSlider,
+            label: reserva == 0 ? 'Sem margem' : '+${reserva.toStringAsFixed(0)}%',
+            onChanged: (v) => prov.setReservaPercent(v),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('0% (padrão NR-10)', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+              const Text('50%', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            ],
+          ),
+          if (reserva > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Com +${reserva.toStringAsFixed(0)}% de margem, o disjuntor geral selecionado será maior, garantindo folga real na instalação.',
+                      style: const TextStyle(fontSize: 10, color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<AppProvider>();
@@ -60,6 +150,8 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
 
           // ── Módulo 2: Reserva de Carga ──────────────────────────
           _secao('2. Reserva de Carga', Icons.battery_charging_full),
+          _sliderReserva(),
+          const SizedBox(height: 10),
           _reservaCarga(resultado),
           const SizedBox(height: 16),
 

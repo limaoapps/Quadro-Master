@@ -32,7 +32,10 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
     if (projeto == null) return const SizedBox.shrink();
 
     final screens = [
-      ProjetoDadosScreen(projeto: projeto),
+      ProjetoDadosScreen(
+        projeto: projeto,
+        onSaved: () => setState(() => _currentIndex = 1),
+      ),
       CargasScreen(projeto: projeto),
       AnaliseScreen(projeto: projeto),
       RelatorioScreen(projeto: projeto),

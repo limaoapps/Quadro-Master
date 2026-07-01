@@ -259,6 +259,77 @@ class _CargaCard extends StatelessWidget {
                     for (final a in carga.alertas)
                       _alertRow(a),
                   ],
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _editarCarga(context),
+                        icon: const Icon(Icons.edit_outlined, size: 15, color: AppColors.primary),
+                        label: const Text('Editar', style: TextStyle(fontSize: 11, color: AppColors.primary)),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      Container(width: 1, height: 18, color: AppColors.divider),
+                      TextButton.icon(
+                        onPressed: () async {
+                          await context.read<AppProvider>().duplicarCarga(carga);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Carga duplicada!'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.copy_outlined, size: 15, color: AppColors.secondary),
+                        label: const Text('Duplicar', style: TextStyle(fontSize: 11, color: AppColors.secondary)),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      Container(width: 1, height: 18, color: AppColors.divider),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Excluir carga?'),
+                              content: Text('Deseja excluir "${carga.descricao}"?\n\nEsta ação não pode ser desfeita.'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancelar'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Excluir',
+                                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w700)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok == true && context.mounted) {
+                            await context.read<AppProvider>().excluirCarga(carga.id);
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline, size: 15, color: AppColors.error),
+                        label: const Text('Excluir', style: TextStyle(fontSize: 11, color: AppColors.error)),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
