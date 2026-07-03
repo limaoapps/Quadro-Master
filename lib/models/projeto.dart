@@ -1,23 +1,33 @@
 import 'dart:convert';
 import 'carga.dart';
 
-enum TipoQuadro { qd, qf, qgbt }
+enum TipoQuadro { qd, qf, qgbt, painelEletrico }
 enum NumeroFases { monofasico, bifasico, trifasico }
 enum TensaoAlimentacao { v127, v220, v380, v440 }
 
 extension TipoQuadroExt on TipoQuadro {
   String get label {
     switch (this) {
-      case TipoQuadro.qd: return 'QD – Quadro de Distribuição';
-      case TipoQuadro.qf: return 'QF – Quadro de Força';
-      case TipoQuadro.qgbt: return 'QGBT – Quadro Geral de BT';
+      case TipoQuadro.qd:           return 'QD – Quadro de Distribuição';
+      case TipoQuadro.qf:           return 'QF – Quadro de Força';
+      case TipoQuadro.qgbt:         return 'QGBT – Quadro Geral de BT';
+      case TipoQuadro.painelEletrico: return 'Painel Elétrico';
     }
   }
   String get sigla {
     switch (this) {
-      case TipoQuadro.qd: return 'QD';
-      case TipoQuadro.qf: return 'QF';
-      case TipoQuadro.qgbt: return 'QGBT';
+      case TipoQuadro.qd:           return 'QD';
+      case TipoQuadro.qf:           return 'QF';
+      case TipoQuadro.qgbt:         return 'QGBT';
+      case TipoQuadro.painelEletrico: return 'PE';
+    }
+  }
+  String get descricao {
+    switch (this) {
+      case TipoQuadro.qd:           return 'Circuitos de iluminação, tomadas e cargas finais';
+      case TipoQuadro.qf:           return 'Motores e equipamentos industriais';
+      case TipoQuadro.qgbt:         return 'Alimenta outros quadros e alimentadores';
+      case TipoQuadro.painelEletrico: return 'Equipamentos de comando e automação';
     }
   }
 }
@@ -305,7 +315,7 @@ class Projeto {
     return Projeto(
       id: m['id'],
       nome: m['nome'],
-      tipoQuadro: TipoQuadro.values[m['tipoQuadro'] ?? 0],
+      tipoQuadro: TipoQuadro.values[((m['tipoQuadro'] ?? 0) as int).clamp(0, TipoQuadro.values.length - 1)],
       tensao: TensaoAlimentacao.values[m['tensao'] ?? 1],
       numFases: NumeroFases.values[m['numFases'] ?? 2],
       fatorPotenciaGeral: (m['fatorPotenciaGeral'] ?? 0.85).toDouble(),

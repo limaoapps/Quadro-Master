@@ -207,9 +207,10 @@ class _TabItem {
 
 String _tipoSigla(TipoQuadro t) {
   switch (t) {
-    case TipoQuadro.qd: return 'QD';
-    case TipoQuadro.qf: return 'QF';
-    case TipoQuadro.qgbt: return 'QGBT';
+    case TipoQuadro.qd:            return 'QD';
+    case TipoQuadro.qf:            return 'QF';
+    case TipoQuadro.qgbt:          return 'QGBT';
+    case TipoQuadro.painelEletrico: return 'PE';
   }
 }
 

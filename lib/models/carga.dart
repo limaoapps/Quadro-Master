@@ -1,5 +1,8 @@
 import 'dart:math';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums base
+// ─────────────────────────────────────────────────────────────────────────────
 enum TipoCarga { tug, tue, motor, arCondicionado, resistencia, iluminacao, generico }
 enum LigacaoCarga { monofasico, bifasico, trifasico }
 // FaseCarga: a=0, b=1, c=2, abc=3, ab=4, ac=5, bc=6
@@ -7,27 +10,177 @@ enum FaseCarga { a, b, c, abc, ab, ac, bc }
 enum TipoPartida { direta, estrelaDelta, softStarter, vfd }
 enum TecnologiaLuminaria { led, fluorescente, vaporSodio, vaporMetalico, incandescente, outro }
 
-extension TipoCargaExt on TipoCarga {
+// ─────────────────────────────────────────────────────────────────────────────
+// Subtipo QGBT – alimentadores
+// ─────────────────────────────────────────────────────────────────────────────
+enum SubtipoQGBT {
+  qd,
+  qf,
+  painelEletrico,
+  ccm,
+  alimentadorGeral,
+  alimentadorSecundario,
+  outroAlimentador,
+}
+
+extension SubtipoQGBTExt on SubtipoQGBT {
   String get label {
     switch (this) {
-      case TipoCarga.tug: return 'TUG – Tomada Uso Geral';
-      case TipoCarga.tue: return 'TUE – Tomada Uso Específico';
-      case TipoCarga.motor: return 'Motor Elétrico';
-      case TipoCarga.arCondicionado: return 'Ar-Condicionado';
-      case TipoCarga.resistencia: return 'Resistência/Aquecedor';
-      case TipoCarga.iluminacao: return 'Iluminação';
-      case TipoCarga.generico: return 'Carga Genérica';
+      case SubtipoQGBT.qd:                 return 'Quadro de Distribuição (QD)';
+      case SubtipoQGBT.qf:                 return 'Quadro de Força (QF)';
+      case SubtipoQGBT.painelEletrico:     return 'Painel Elétrico';
+      case SubtipoQGBT.ccm:               return 'Centro de Controle de Motores (CCM)';
+      case SubtipoQGBT.alimentadorGeral:   return 'Alimentador Geral';
+      case SubtipoQGBT.alimentadorSecundario: return 'Alimentador Secundário';
+      case SubtipoQGBT.outroAlimentador:   return 'Outro Alimentador';
     }
   }
   String get icone {
     switch (this) {
-      case TipoCarga.tug: return '🔌';
-      case TipoCarga.tue: return '⚡';
-      case TipoCarga.motor: return '⚙️';
+      case SubtipoQGBT.qd:                 return '🟦';
+      case SubtipoQGBT.qf:                 return '⚙️';
+      case SubtipoQGBT.painelEletrico:     return '🖥️';
+      case SubtipoQGBT.ccm:               return '🏭';
+      case SubtipoQGBT.alimentadorGeral:   return '🔋';
+      case SubtipoQGBT.alimentadorSecundario: return '🔌';
+      case SubtipoQGBT.outroAlimentador:   return '📦';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subtipo QF – industriais
+// ─────────────────────────────────────────────────────────────────────────────
+enum SubtipoQF {
+  motor,
+  bomba,
+  compressor,
+  exaustor,
+  ventiladorIndustrial,
+  elevador,
+  maquinaIndustrial,
+  prensa,
+  esteira,
+  guincho,
+  ponteRolante,
+  outroEquipamento,
+}
+
+extension SubtipoQFExt on SubtipoQF {
+  String get label {
+    switch (this) {
+      case SubtipoQF.motor:               return 'Motor Elétrico';
+      case SubtipoQF.bomba:               return 'Bomba';
+      case SubtipoQF.compressor:          return 'Compressor';
+      case SubtipoQF.exaustor:            return 'Exaustor';
+      case SubtipoQF.ventiladorIndustrial: return 'Ventilador Industrial';
+      case SubtipoQF.elevador:            return 'Elevador';
+      case SubtipoQF.maquinaIndustrial:   return 'Máquina Industrial';
+      case SubtipoQF.prensa:              return 'Prensa';
+      case SubtipoQF.esteira:             return 'Esteira';
+      case SubtipoQF.guincho:             return 'Guincho';
+      case SubtipoQF.ponteRolante:        return 'Ponte Rolante';
+      case SubtipoQF.outroEquipamento:    return 'Outro Equipamento';
+    }
+  }
+  String get icone {
+    switch (this) {
+      case SubtipoQF.motor:               return '⚙️';
+      case SubtipoQF.bomba:               return '💧';
+      case SubtipoQF.compressor:          return '🌀';
+      case SubtipoQF.exaustor:            return '🌬️';
+      case SubtipoQF.ventiladorIndustrial: return '💨';
+      case SubtipoQF.elevador:            return '🏗️';
+      case SubtipoQF.maquinaIndustrial:   return '🏭';
+      case SubtipoQF.prensa:              return '🔩';
+      case SubtipoQF.esteira:             return '➡️';
+      case SubtipoQF.guincho:             return '⛓️';
+      case SubtipoQF.ponteRolante:        return '🏗️';
+      case SubtipoQF.outroEquipamento:    return '📦';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subtipo Painel Elétrico – automação/comando
+// ─────────────────────────────────────────────────────────────────────────────
+enum SubtipoPainel {
+  inversorFrequencia,
+  softStarter,
+  contator,
+  rele,
+  releTermico,
+  clp,
+  ihm,
+  fonte24v,
+  transformadorComando,
+  disjuntor,
+  fusivel,
+  fonteChaveada,
+  outroEquipamento,
+}
+
+extension SubtipoPainelExt on SubtipoPainel {
+  String get label {
+    switch (this) {
+      case SubtipoPainel.inversorFrequencia:    return 'Inversor de Frequência';
+      case SubtipoPainel.softStarter:           return 'Soft Starter';
+      case SubtipoPainel.contator:              return 'Contator';
+      case SubtipoPainel.rele:                  return 'Relé';
+      case SubtipoPainel.releTermico:           return 'Relé Térmico';
+      case SubtipoPainel.clp:                   return 'CLP';
+      case SubtipoPainel.ihm:                   return 'IHM';
+      case SubtipoPainel.fonte24v:              return 'Fonte 24V';
+      case SubtipoPainel.transformadorComando:  return 'Transformador de Comando';
+      case SubtipoPainel.disjuntor:             return 'Disjuntor';
+      case SubtipoPainel.fusivel:               return 'Fusível';
+      case SubtipoPainel.fonteChaveada:         return 'Fonte Chaveada';
+      case SubtipoPainel.outroEquipamento:      return 'Outro Equipamento';
+    }
+  }
+  String get icone {
+    switch (this) {
+      case SubtipoPainel.inversorFrequencia:    return '🔄';
+      case SubtipoPainel.softStarter:           return '🚀';
+      case SubtipoPainel.contator:              return '⚡';
+      case SubtipoPainel.rele:                  return '🔌';
+      case SubtipoPainel.releTermico:           return '🌡️';
+      case SubtipoPainel.clp:                   return '💻';
+      case SubtipoPainel.ihm:                   return '🖥️';
+      case SubtipoPainel.fonte24v:              return '🔋';
+      case SubtipoPainel.transformadorComando:  return '🔁';
+      case SubtipoPainel.disjuntor:             return '⚙️';
+      case SubtipoPainel.fusivel:               return '🔐';
+      case SubtipoPainel.fonteChaveada:         return '⚡';
+      case SubtipoPainel.outroEquipamento:      return '📦';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Extensions existentes
+// ─────────────────────────────────────────────────────────────────────────────
+extension TipoCargaExt on TipoCarga {
+  String get label {
+    switch (this) {
+      case TipoCarga.tug:          return 'TUG – Tomada Uso Geral';
+      case TipoCarga.tue:          return 'TUE – Tomada Uso Específico';
+      case TipoCarga.motor:        return 'Motor Elétrico';
+      case TipoCarga.arCondicionado: return 'Ar-Condicionado';
+      case TipoCarga.resistencia:  return 'Resistência/Aquecedor';
+      case TipoCarga.iluminacao:   return 'Iluminação';
+      case TipoCarga.generico:     return 'Carga Genérica';
+    }
+  }
+  String get icone {
+    switch (this) {
+      case TipoCarga.tug:          return '🔌';
+      case TipoCarga.tue:          return '⚡';
+      case TipoCarga.motor:        return '⚙️';
       case TipoCarga.arCondicionado: return '❄️';
-      case TipoCarga.resistencia: return '🌡️';
-      case TipoCarga.iluminacao: return '💡';
-      case TipoCarga.generico: return '📦';
+      case TipoCarga.resistencia:  return '🌡️';
+      case TipoCarga.iluminacao:   return '💡';
+      case TipoCarga.generico:     return '📦';
     }
   }
 }
@@ -36,8 +189,8 @@ extension LigacaoExt on LigacaoCarga {
   String get label {
     switch (this) {
       case LigacaoCarga.monofasico: return 'Monofásico';
-      case LigacaoCarga.bifasico: return 'Bifásico';
-      case LigacaoCarga.trifasico: return 'Trifásico';
+      case LigacaoCarga.bifasico:   return 'Bifásico';
+      case LigacaoCarga.trifasico:  return 'Trifásico';
     }
   }
 }
@@ -54,14 +207,9 @@ extension FaseExt on FaseCarga {
       case FaseCarga.bc:  return 'B+C';
     }
   }
-
-  /// Retorna true se esta fase inclui a fase A
   bool get temA => this == FaseCarga.a || this == FaseCarga.abc || this == FaseCarga.ab || this == FaseCarga.ac;
-  /// Retorna true se esta fase inclui a fase B
   bool get temB => this == FaseCarga.b || this == FaseCarga.abc || this == FaseCarga.ab || this == FaseCarga.bc;
-  /// Retorna true se esta fase inclui a fase C
   bool get temC => this == FaseCarga.c || this == FaseCarga.abc || this == FaseCarga.ac || this == FaseCarga.bc;
-  /// Número de fases utilizadas
   int get numFases {
     switch (this) {
       case FaseCarga.a:
@@ -78,22 +226,25 @@ extension FaseExt on FaseCarga {
 extension TipoPartidaExt on TipoPartida {
   String get label {
     switch (this) {
-      case TipoPartida.direta: return 'Partida Direta';
+      case TipoPartida.direta:       return 'Partida Direta';
       case TipoPartida.estrelaDelta: return 'Estrela-Triângulo (Y-Δ)';
-      case TipoPartida.softStarter: return 'Soft Starter';
-      case TipoPartida.vfd: return 'Inversor de Frequência (VFD)';
+      case TipoPartida.softStarter:  return 'Soft Starter';
+      case TipoPartida.vfd:          return 'Inversor de Frequência (VFD)';
     }
   }
   double get fatorIp {
     switch (this) {
-      case TipoPartida.direta: return 7.0;
+      case TipoPartida.direta:       return 7.0;
       case TipoPartida.estrelaDelta: return 2.5;
-      case TipoPartida.softStarter: return 3.0;
-      case TipoPartida.vfd: return 1.1;
+      case TipoPartida.softStarter:  return 3.0;
+      case TipoPartida.vfd:          return 1.1;
     }
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ResultadoCalculo (mantido para compatibilidade)
+// ─────────────────────────────────────────────────────────────────────────────
 class ResultadoCalculo {
   final double potenciaAtiva;
   final double potenciaReativa;
@@ -118,6 +269,9 @@ class ResultadoCalculo {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Classe Carga – expandida com DR, subtipos e campos específicos
+// ─────────────────────────────────────────────────────────────────────────────
 class Carga {
   String id;
   String descricao;
@@ -146,6 +300,22 @@ class Carga {
   double comprimentoRamal;
   bool ativo;
 
+  // ── NOVO: Proteção DR (para TUG e TUE) ───────────────────────────────
+  bool utilizaDR;
+  String sensibilidadeDR; // '30mA', '100mA', '300mA', 'outro'
+  double sensibilidadeDROutro; // valor em mA quando 'outro'
+
+  // ── NOVO: Subtipos especiais por tipo de quadro ───────────────────────
+  // QGBT
+  SubtipoQGBT? subtipoQGBT;
+  // QF (industrial)
+  SubtipoQF? subtipoQF;
+  String metodoPadrao; // método de partida textual para QF
+  // Painel Elétrico
+  SubtipoPainel? subtipoPainel;
+  String modelo;
+  String fabricante;
+
   Carga({
     required this.id,
     required this.descricao,
@@ -169,6 +339,17 @@ class Carga {
     this.tecnologiaLuminaria = TecnologiaLuminaria.led,
     this.comprimentoRamal = 20,
     this.ativo = true,
+    // DR
+    this.utilizaDR = false,
+    this.sensibilidadeDR = '30mA',
+    this.sensibilidadeDROutro = 30,
+    // Subtipos
+    this.subtipoQGBT,
+    this.subtipoQF,
+    this.metodoPadrao = '',
+    this.subtipoPainel,
+    this.modelo = '',
+    this.fabricante = '',
   });
 
   double get potenciaAtiva {
@@ -197,13 +378,9 @@ class Carga {
   }
 
   double get corrente {
-    // Bifásico: tensão entre fases = tensão informada (linha)
-    // Corrente por condutor = S / (√3 × Ulinha) para bifásico real
-    // Simplificado: I = S / (tensao × √3) pois a tensão declarada é de linha
     if (ligacao == LigacaoCarga.trifasico) {
       return potenciaAparente / (sqrt(3) * tensao);
     } else if (ligacao == LigacaoCarga.bifasico) {
-      // Carga bifásica: corrente por fase = S / (√3 × Ulinha)
       return potenciaAparente / (sqrt(3) * tensao);
     } else {
       return potenciaAparente / tensao;
@@ -228,14 +405,14 @@ class Carga {
 
   double get condutorSugerido {
     final iProj = corrente * 1.25;
-    if (iProj <= 13) return 1.5;
-    if (iProj <= 18) return 2.5;
-    if (iProj <= 24) return 4.0;
-    if (iProj <= 32) return 6.0;
-    if (iProj <= 43) return 10.0;
-    if (iProj <= 57) return 16.0;
-    if (iProj <= 75) return 25.0;
-    if (iProj <= 92) return 35.0;
+    if (iProj <= 13)  return 1.5;
+    if (iProj <= 18)  return 2.5;
+    if (iProj <= 24)  return 4.0;
+    if (iProj <= 32)  return 6.0;
+    if (iProj <= 43)  return 10.0;
+    if (iProj <= 57)  return 16.0;
+    if (iProj <= 75)  return 25.0;
+    if (iProj <= 92)  return 35.0;
     if (iProj <= 120) return 50.0;
     if (iProj <= 150) return 70.0;
     if (iProj <= 180) return 95.0;
@@ -270,6 +447,15 @@ class Carga {
     return lista;
   }
 
+  // ── Texto DR para exibição ────────────────────────────────────────────
+  String get drTexto {
+    if (!utilizaDR) return 'Sem DR';
+    if (sensibilidadeDR == 'outro') {
+      return 'DR ${sensibilidadeDROutro.toStringAsFixed(0)} mA';
+    }
+    return 'DR $sensibilidadeDR';
+  }
+
   Map<String, dynamic> toMap() => {
     'id': id, 'descricao': descricao, 'tipo': tipo.index,
     'quantidade': quantidade, 'potenciaNominal': potenciaNominal,
@@ -283,6 +469,17 @@ class Carga {
     'quantidadeLuminarias': quantidadeLuminarias,
     'tecnologiaLuminaria': tecnologiaLuminaria.index,
     'comprimentoRamal': comprimentoRamal, 'ativo': ativo,
+    // DR
+    'utilizaDR': utilizaDR,
+    'sensibilidadeDR': sensibilidadeDR,
+    'sensibilidadeDROutro': sensibilidadeDROutro,
+    // Subtipos
+    'subtipoQGBT': subtipoQGBT?.index,
+    'subtipoQF': subtipoQF?.index,
+    'metodoPadrao': metodoPadrao,
+    'subtipoPainel': subtipoPainel?.index,
+    'modelo': modelo,
+    'fabricante': fabricante,
   };
 
   factory Carga.fromMap(Map<String, dynamic> m) => Carga(
@@ -308,5 +505,19 @@ class Carga {
     tecnologiaLuminaria: TecnologiaLuminaria.values[m['tecnologiaLuminaria'] ?? 0],
     comprimentoRamal: (m['comprimentoRamal'] ?? 20).toDouble(),
     ativo: m['ativo'] ?? true,
+    // DR
+    utilizaDR: m['utilizaDR'] ?? false,
+    sensibilidadeDR: m['sensibilidadeDR'] ?? '30mA',
+    sensibilidadeDROutro: (m['sensibilidadeDROutro'] ?? 30).toDouble(),
+    // Subtipos
+    subtipoQGBT: m['subtipoQGBT'] != null
+        ? SubtipoQGBT.values[m['subtipoQGBT']] : null,
+    subtipoQF: m['subtipoQF'] != null
+        ? SubtipoQF.values[m['subtipoQF']] : null,
+    metodoPadrao: m['metodoPadrao'] ?? '',
+    subtipoPainel: m['subtipoPainel'] != null
+        ? SubtipoPainel.values[m['subtipoPainel']] : null,
+    modelo: m['modelo'] ?? '',
+    fabricante: m['fabricante'] ?? '',
   );
 }
