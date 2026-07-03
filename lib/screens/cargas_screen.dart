@@ -1251,7 +1251,6 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   // Form QF (industrial)
   // ─────────────────────────────────────────────────────────────────────────
   List<Widget> _buildQFForm() {
-    final tensoes = _tensoesPorLigacao(_ligacao);
     final fases   = _fasesPorLigacao(_ligacao);
 
     return [

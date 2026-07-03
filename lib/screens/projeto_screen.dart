@@ -7,6 +7,7 @@ import 'projeto_dados_screen.dart';
 import 'cargas_screen.dart';
 import 'analise_screen.dart';
 import 'relatorio_screen.dart';
+import 'alimentadores_screen.dart';
 
 class ProjetoScreen extends StatefulWidget {
   const ProjetoScreen({super.key});
@@ -18,9 +19,11 @@ class ProjetoScreen extends StatefulWidget {
 class _ProjetoScreenState extends State<ProjetoScreen> {
   int _currentIndex = 0;
 
-  final _tabs = [
+  List<_TabItem> _buildTabs(TipoQuadro tipo) => [
     const _TabItem(icon: Icons.info_outline,         label: 'Projeto'),
-    const _TabItem(icon: Icons.cable,                label: 'Cargas'),
+    tipo == TipoQuadro.qgbt
+        ? const _TabItem(icon: Icons.account_tree,   label: 'Alimentadores')
+        : const _TabItem(icon: Icons.cable,          label: 'Cargas'),
     const _TabItem(icon: Icons.analytics_outlined,   label: 'Análise'),
     const _TabItem(icon: Icons.description_outlined, label: 'Relatório'),
   ];
@@ -31,12 +34,18 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
     final projeto = prov.projetoAtual;
     if (projeto == null) return const SizedBox.shrink();
 
+    // Para QGBT: aba "Cargas" mostra AlimentadoresScreen
+    final isQGBT = projeto.tipoQuadro == TipoQuadro.qgbt;
+    final tabs = _buildTabs(projeto.tipoQuadro);
+
     final screens = [
       ProjetoDadosScreen(
         projeto: projeto,
         onSaved: () => setState(() => _currentIndex = 1),
       ),
-      CargasScreen(projeto: projeto),
+      isQGBT
+          ? AlimentadoresScreen(projeto: projeto)
+          : CargasScreen(projeto: projeto),
       AnaliseScreen(projeto: projeto),
       RelatorioScreen(projeto: projeto),
     ];
@@ -155,7 +164,7 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
-              children: List.generate(_tabs.length, (i) {
+              children: List.generate(tabs.length, (i) {
                 final selected = _currentIndex == i;
                 return Expanded(
                   child: GestureDetector(
@@ -172,14 +181,14 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Icon(
-                            _tabs[i].icon,
+                            tabs[i].icon,
                             color: selected ? AppColors.primary : AppColors.textSecondary,
                             size: 22,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _tabs[i].label,
+                          tabs[i].label,
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,

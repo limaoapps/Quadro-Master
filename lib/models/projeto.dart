@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'carga.dart';
+import 'alimentador.dart';
 
 enum TipoQuadro { qd, qf, qgbt, painelEletrico }
 enum NumeroFases { monofasico, bifasico, trifasico }
@@ -275,6 +276,9 @@ class Projeto {
   DateTime modificadoEm;
   StatusProjeto status;
 
+  // ── QGBT: lista de alimentadores hierárquicos ──────────────────────────
+  List<Alimentador> alimentadores;
+
   Projeto({
     required this.id,
     required this.nome,
@@ -286,14 +290,22 @@ class Projeto {
     EmpresaExecutora? executora,
     EmpresaContratante? contratante,
     List<Carga>? cargas,
+    List<Alimentador>? alimentadores,
     DateTime? criadoEm,
     DateTime? modificadoEm,
     this.status = StatusProjeto.elaboracao,
   })  : executora = executora ?? EmpresaExecutora(),
         contratante = contratante ?? EmpresaContratante(),
         cargas = cargas ?? [],
+        alimentadores = alimentadores ?? [],
         criadoEm = criadoEm ?? DateTime.now(),
         modificadoEm = modificadoEm ?? DateTime.now();
+
+  // Retorna o ResultadoQGBT calculado automaticamente (apenas para QGBT)
+  ResultadoQGBT? get resultadoQGBT {
+    if (tipoQuadro != TipoQuadro.qgbt || alimentadores.isEmpty) return null;
+    return ResultadoQGBT.calcular(alimentadores);
+  }
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -306,6 +318,7 @@ class Projeto {
     'executora': executora.toMap(),
     'contratante': contratante.toMap(),
     'cargas': cargas.map((c) => c.toMap()).toList(),
+    'alimentadores': alimentadores.map((a) => a.toMap()).toList(),
     'criadoEm': criadoEm.toIso8601String(),
     'modificadoEm': modificadoEm.toIso8601String(),
     'status': status.index,
@@ -325,6 +338,9 @@ class Projeto {
       cargas: (m['cargas'] as List<dynamic>? ?? [])
           .map((c) => Carga.fromMap(c as Map<String, dynamic>))
           .toList(),
+      alimentadores: (m['alimentadores'] as List<dynamic>? ?? [])
+          .map((a) => Alimentador.fromMap(a as Map<String, dynamic>))
+          .toList(),
       criadoEm: DateTime.parse(m['criadoEm'] ?? DateTime.now().toIso8601String()),
       modificadoEm: DateTime.parse(m['modificadoEm'] ?? DateTime.now().toIso8601String()),
       status: StatusProjeto.values[m['status'] ?? 0],
@@ -337,7 +353,7 @@ class Projeto {
   Projeto copyWith({String? nome, TipoQuadro? tipoQuadro, TensaoAlimentacao? tensao,
     NumeroFases? numFases, double? fatorPotenciaGeral, String? observacoes,
     EmpresaExecutora? executora, EmpresaContratante? contratante,
-    List<Carga>? cargas, StatusProjeto? status}) {
+    List<Carga>? cargas, List<Alimentador>? alimentadores, StatusProjeto? status}) {
     return Projeto(
       id: id,
       nome: nome ?? this.nome,
@@ -349,6 +365,7 @@ class Projeto {
       executora: executora ?? this.executora,
       contratante: contratante ?? this.contratante,
       cargas: cargas ?? this.cargas,
+      alimentadores: alimentadores ?? this.alimentadores,
       criadoEm: criadoEm,
       modificadoEm: DateTime.now(),
       status: status ?? this.status,

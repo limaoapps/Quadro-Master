@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/projeto.dart';
 import '../models/carga.dart';
+import '../models/alimentador.dart';
 import '../models/resultado_projeto.dart';
 import '../models/perfil_usuario.dart';
 import '../services/storage_service.dart';
@@ -178,6 +179,51 @@ class AppProvider extends ChangeNotifier {
   }
 
   String get novaCargaId => _uuid.v4();
+
+  // ── ALIMENTADORES (QGBT) ─────────────────────────────────
+  String get novoAlimentadorId => _uuid.v4();
+  String get novoQuadroFilhoId => _uuid.v4();
+
+  Future<void> adicionarAlimentador(Alimentador a) async {
+    if (_projetoAtual == null) return;
+    _projetoAtual!.alimentadores.add(a);
+    _projetoAtual!.modificadoEm = DateTime.now();
+    await salvarProjetoAtual();
+  }
+
+  Future<void> atualizarAlimentador(Alimentador a) async {
+    if (_projetoAtual == null) return;
+    final idx = _projetoAtual!.alimentadores.indexWhere((x) => x.id == a.id);
+    if (idx >= 0) _projetoAtual!.alimentadores[idx] = a;
+    _projetoAtual!.modificadoEm = DateTime.now();
+    await salvarProjetoAtual();
+  }
+
+  Future<void> excluirAlimentador(String id) async {
+    if (_projetoAtual == null) return;
+    _projetoAtual!.alimentadores.removeWhere((a) => a.id == id);
+    _projetoAtual!.modificadoEm = DateTime.now();
+    await salvarProjetoAtual();
+  }
+
+  // Salva o quadro filho dentro de um alimentador específico
+  Future<void> salvarQuadroFilho(String alimentadorId, QuadroFilho qf) async {
+    if (_projetoAtual == null) return;
+    final idx = _projetoAtual!.alimentadores.indexWhere((a) => a.id == alimentadorId);
+    if (idx >= 0) {
+      _projetoAtual!.alimentadores[idx].quadroFilho = qf;
+    }
+    _projetoAtual!.modificadoEm = DateTime.now();
+    await salvarProjetoAtual();
+  }
+
+  // Retorna o ResultadoQGBT calculado automaticamente
+  ResultadoQGBT? get resultadoQGBT {
+    if (_projetoAtual?.tipoQuadro != TipoQuadro.qgbt) return null;
+    final alimentadores = _projetoAtual!.alimentadores;
+    if (alimentadores.isEmpty) return null;
+    return ResultadoQGBT.calcular(alimentadores, reservaPercent: _reservaPercent);
+  }
 
   // ── EMPRESA EXECUTORA ─────────────────────────────────────
   Future<void> atualizarEmpresaExecutora(EmpresaExecutora e) async {

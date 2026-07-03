@@ -5,6 +5,7 @@ import '../providers/app_provider.dart';
 import '../models/projeto.dart';
 import '../models/carga.dart';
 import '../models/resultado_projeto.dart';
+import '../models/alimentador.dart';
 import '../theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +123,12 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<AppProvider>();
+
+    // ── QGBT: exibe análise consolidada dos alimentadores ────────────────────
+    if (prov.projetoAtual?.tipoQuadro == TipoQuadro.qgbt) {
+      return _buildQGBTAnalise(context, prov);
+    }
+
     final resultado = prov.resultado;
 
     if (prov.projetoAtual?.cargas.isEmpty ?? true) {
@@ -992,6 +999,478 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
       ],
     ),
   );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Análise QGBT — consolidação hierárquica dos alimentadores
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildQGBTAnalise(BuildContext context, AppProvider prov) {
+    final resQGBT  = prov.resultadoQGBT;
+    final alims    = prov.projetoAtual?.alimentadores ?? [];
+    final bottomPad = MediaQuery.of(context).viewPadding.bottom;
+
+    if (alims.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B1B3D).withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_tree_outlined, size: 40, color: Color(0xFF0B1B3D)),
+            ),
+            const SizedBox(height: 16),
+            const Text('Nenhum alimentador cadastrado',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            const Text(
+              'Acesse a aba "Alimentadores" e cadastre\nos quadros alimentados pelo QGBT.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (resQGBT == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.hourglass_empty, size: 48, color: AppColors.textSecondary),
+            const SizedBox(height: 12),
+            Text(
+              '${alims.length} alimentador(es) cadastrado(s)',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Adicione circuitos nos quadros de destino\npara calcular automaticamente o QGBT.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(14, 14, 14, bottomPad + 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Cabeçalho QGBT ─────────────────────────────────────────────
+          _qgbtCabecalho(resQGBT),
+          const SizedBox(height: 16),
+
+          // ── Painel Executivo QGBT ───────────────────────────────────────
+          _secao('Painel Executivo QGBT', Icons.dashboard_rounded),
+          _qgbtPainelExecutivo(resQGBT),
+          const SizedBox(height: 20),
+
+          // ── Margem de Reserva ────────────────────────────────────────────
+          _secao('Margem de Reserva do Disjuntor Geral', Icons.tune),
+          _sliderReserva(),
+          const SizedBox(height: 20),
+
+          // ── Tabela de alimentadores ─────────────────────────────────────
+          _secao('Alimentadores e Quadros Alimentados', Icons.account_tree),
+          _qgbtTabelaAlimentadores(resQGBT),
+          const SizedBox(height: 20),
+
+          // ── Distribuição por alimentador ────────────────────────────────
+          _secao('Distribuição de Carga por Alimentador', Icons.bar_chart),
+          _qgbtDistribuicao(resQGBT),
+          const SizedBox(height: 20),
+
+          // ── Diagnóstico automático QGBT ─────────────────────────────────
+          _secao('Diagnóstico Técnico QGBT', Icons.plagiarism_outlined),
+          _qgbtDiagnostico(resQGBT),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _qgbtCabecalho(ResultadoQGBT r) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0B1B3D), Color(0xFF1A3A6B)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF0B1B3D).withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF7A00).withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFF7A00).withValues(alpha: 0.5)),
+              ),
+              child: const Row(children: [
+                Icon(Icons.electric_bolt, color: Color(0xFFFF7A00), size: 12),
+                SizedBox(width: 4),
+                Text('QGBT', style: TextStyle(color: Color(0xFFFF7A00), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            const Text('Análise Técnica Consolidada',
+                style: TextStyle(color: Colors.white70, fontSize: 12)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
+              ),
+              child: Text(
+                '${r.numAlimentadoresDimensionados}/${r.numAlimentadores} dim.',
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.success),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _qgbtMetric('P. Total', '${r.totalPotenciaAparenteKva.toStringAsFixed(1)} kVA', Icons.flash_on),
+            const SizedBox(width: 8),
+            _qgbtMetric('I. Total', '${r.totalCorrenteProjeto.toStringAsFixed(1)} A', Icons.electric_bolt),
+            const SizedBox(width: 8),
+            _qgbtMetric('Disj. Geral', '${r.disjuntorGeral} A', Icons.security, highlight: true),
+            const SizedBox(width: 8),
+            _qgbtMetric('Cabo Entr.', '${r.condutorEntrada.toStringAsFixed(1)} mm²', Icons.cable),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _qgbtMetric(String label, String value, IconData icon, {bool highlight = false}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: highlight
+              ? const Color(0xFFFF7A00).withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: highlight ? Border.all(color: const Color(0xFFFF7A00).withValues(alpha: 0.5)) : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 12, color: highlight ? const Color(0xFFFF7A00) : Colors.white54),
+            const SizedBox(height: 2),
+            Text(value,
+                style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w800,
+                  color: highlight ? const Color(0xFFFF7A00) : Colors.white,
+                ),
+                overflow: TextOverflow.ellipsis),
+            Text(label, style: const TextStyle(fontSize: 9, color: Colors.white54)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _qgbtPainelExecutivo(ResultadoQGBT r) {
+    final pAtiva = r.totalPotenciaAtivaKw;
+    final pAparen = r.totalPotenciaAparenteKva;
+    final fp = pAparen > 0 ? pAtiva / pAparen : 0.0;
+    final fpCor = fp >= 0.92 ? AppColors.success : fp >= 0.85 ? AppColors.warning : AppColors.error;
+
+    return LayoutBuilder(builder: (ctx, constraints) {
+      final w = (constraints.maxWidth - 10) / 2;
+      Widget card(String label, String value, IconData icon, Color color) =>
+          _execCard(label, value, icon, color, w);
+      return Wrap(
+        spacing: 10, runSpacing: 10,
+        children: [
+          card('P. Ativa Total',     '${pAtiva.toStringAsFixed(1)} kW',          Icons.bolt,                  AppColors.primary),
+          card('P. Aparente Total',  '${pAparen.toStringAsFixed(1)} kVA',         Icons.flash_on,              AppColors.secondary),
+          card('Corrente Total',     '${r.totalCorrenteProjeto.toStringAsFixed(1)} A', Icons.electric_bolt,    _cor(r.totalCorrenteProjeto > 0 ? 'ok' : 'warn')),
+          card('Disjuntor Geral',    '${r.disjuntorGeral} A',                     Icons.security,              AppColors.primary),
+          card('Cabo de Entrada',    '${r.condutorEntrada.toStringAsFixed(1)} mm²', Icons.cable,               AppColors.secondary),
+          card('Fator de Potência',  fp.toStringAsFixed(3),                        Icons.tune,                  fpCor),
+          card('Alimentadores',      '${r.numAlimentadores}',                      Icons.account_tree,          AppColors.secondary),
+          card('Dimensionados',      '${r.numAlimentadoresDimensionados}/${r.numAlimentadores}', Icons.check_circle_outline, _cor(r.numAlimentadoresDimensionados == r.numAlimentadores ? 'ok' : 'warn')),
+        ],
+      );
+    });
+  }
+
+  Widget _qgbtTabelaAlimentadores(ResultadoQGBT r) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+      ),
+      child: Column(
+        children: [
+          // Cabeçalho da tabela
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B1B3D).withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(children: [
+              const SizedBox(width: 28),
+              Expanded(flex: 3, child: _thCell('Alimentador / Destino')),
+              Expanded(flex: 2, child: _thCell('P. Ap. (kVA)')),
+              Expanded(flex: 2, child: _thCell('I (A)')),
+              Expanded(flex: 2, child: _thCell('Disj. (A)')),
+              Expanded(flex: 2, child: _thCell('Cabo (mm²)')),
+            ]),
+          ),
+          // Linhas
+          ...r.alimentadores.asMap().entries.map((entry) {
+            final i = entry.key;
+            final a = entry.value;
+            final isLast = i == r.alimentadores.length - 1;
+            final temDados = a.corrente > 0;
+            return Container(
+              decoration: BoxDecoration(
+                color: temDados ? Colors.white : Colors.orange.withValues(alpha: 0.04),
+                borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(12)) : null,
+                border: Border(
+                  top: BorderSide(color: AppColors.divider),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(children: [
+                // Status dot
+                Container(
+                  width: 8, height: 8,
+                  margin: const EdgeInsets.only(right: 8, top: 2),
+                  decoration: BoxDecoration(
+                    color: temDados ? AppColors.success : AppColors.warning,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                // Alimentador info
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.nome, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      if (a.destino.isNotEmpty)
+                        Text(a.destino,
+                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(a.tipoDestino.sigla,
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(flex: 2, child: _tdCell(temDados ? a.potenciaAparenteKva.toStringAsFixed(1) : '—')),
+                Expanded(flex: 2, child: _tdCell(temDados ? a.corrente.toStringAsFixed(1) : '—')),
+                Expanded(flex: 2, child: _tdCell(temDados ? '${a.disjuntor}' : '—', bold: true, color: temDados ? AppColors.primary : null)),
+                Expanded(flex: 2, child: _tdCell(temDados ? a.condutor.toStringAsFixed(1) : '—')),
+              ]),
+            );
+          }),
+          // Linha total
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B1B3D).withValues(alpha: 0.06),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              border: Border(top: BorderSide(color: AppColors.divider, width: 2)),
+            ),
+            child: Row(children: [
+              const SizedBox(width: 28),
+              const Expanded(flex: 3, child: Text('TOTAL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
+              Expanded(flex: 2, child: _tdCell(r.totalPotenciaAparenteKva.toStringAsFixed(1), bold: true, color: AppColors.primary)),
+              Expanded(flex: 2, child: _tdCell(r.totalCorrenteProjeto.toStringAsFixed(1), bold: true, color: AppColors.primary)),
+              Expanded(flex: 2, child: _tdCell('${r.disjuntorGeral}', bold: true, color: const Color(0xFFFF7A00))),
+              Expanded(flex: 2, child: _tdCell(r.condutorEntrada.toStringAsFixed(1), bold: true, color: AppColors.primary)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thCell(String t) => Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary));
+  Widget _tdCell(String t, {bool bold = false, Color? color}) => Text(t,
+      style: TextStyle(fontSize: 11, fontWeight: bold ? FontWeight.w700 : FontWeight.w500, color: color ?? AppColors.textPrimary));
+
+  Widget _qgbtDistribuicao(ResultadoQGBT r) {
+    final totalPot = r.totalPotenciaAparenteKva;
+    if (totalPot == 0) {
+      return _semDados('Nenhum alimentador dimensionado ainda');
+    }
+    final colors = [
+      const Color(0xFF1565C0), const Color(0xFF6A1B9A), const Color(0xFF00695C),
+      const Color(0xFFBF360C), const Color(0xFFE65100), const Color(0xFF0277BD),
+      const Color(0xFF558B2F), const Color(0xFF37474F),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+      ),
+      child: Column(
+        children: r.alimentadores.asMap().entries
+            .where((e) => e.value.corrente > 0)
+            .map((entry) {
+          final a = entry.value;
+          final cor = colors[entry.key % colors.length];
+          final frac = totalPot > 0 ? (a.potenciaAparenteKva / totalPot).clamp(0.0, 1.0) : 0.0;
+          final pct = (frac * 100);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: cor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(a.tipoDestino.sigla, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: cor)),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${a.nome}${a.destino.isNotEmpty ? ' – ${a.destino}' : ''}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text('${pct.toStringAsFixed(1)}%',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cor)),
+                ]),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: frac,
+                    minHeight: 10,
+                    backgroundColor: cor.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation<Color>(cor),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text('${a.potenciaAparenteKva.toStringAsFixed(1)} kVA  ·  ${a.corrente.toStringAsFixed(1)} A',
+                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  Text('Disj: ${a.disjuntor} A  ·  Cabo: ${a.condutor.toStringAsFixed(1)} mm²',
+                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                ]),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _qgbtDiagnostico(ResultadoQGBT r) {
+    final alimNaoDim = r.alimentadores.where((a) => a.corrente == 0).toList();
+    final conformidades = <String>[];
+    final problemas = <String>[];
+    final recomendacoes = <String>[];
+
+    if (r.numAlimentadoresDimensionados == r.numAlimentadores && r.numAlimentadores > 0) {
+      conformidades.add('Todos os alimentadores estão dimensionados — QGBT calculado com dados completos.');
+    }
+    if (r.totalCorrenteProjeto > 0) {
+      conformidades.add('Corrente total calculada: ${r.totalCorrenteProjeto.toStringAsFixed(1)} A.');
+    }
+    if (r.disjuntorGeral > 0) {
+      conformidades.add('Disjuntor geral selecionado: ${r.disjuntorGeral} A (conforme NBR 5410).');
+    }
+
+    for (final a in alimNaoDim) {
+      problemas.add('Alimentador "${a.nome}" não dimensionado — adicione circuitos ao ${a.tipoDestino.sigla}.');
+    }
+    if (r.totalPotenciaAparenteKva > 1000) {
+      recomendacoes.add('Potência total superior a 1 MVA — verificar necessidade de banco de capacitores para correção do FP.');
+    }
+    if (r.numAlimentadores > 12) {
+      recomendacoes.add('QGBT com muitos alimentadores — considere subdividi-lo em QGBTs secundários para facilitar a manutenção.');
+    }
+    recomendacoes.add('Verifique o dimensionamento dos barramentos com base na corrente total de ${r.totalCorrenteProjeto.toStringAsFixed(1)} A.');
+    recomendacoes.add('Confirme que o cabo de entrada (${r.condutorEntrada.toStringAsFixed(1)} mm²) atende à seção mínima conforme NBR 5410 para a corrente de projeto.');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.secondary,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF7A00).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.plagiarism_outlined, color: Color(0xFFFF7A00), size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DIAGNÓSTICO TÉCNICO QGBT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('Gerado automaticamente pelo sistema', style: TextStyle(fontSize: 10, color: Colors.white60)),
+              ],
+            ),
+          ]),
+          const SizedBox(height: 14),
+          if (conformidades.isNotEmpty) ...[
+            _diagSub('Conformidades', AppColors.success),
+            ...conformidades.map((c) => _diagItem(c, AppColors.success, Icons.check_circle_outline)),
+            const SizedBox(height: 10),
+          ],
+          if (problemas.isNotEmpty) ...[
+            _diagSub('Pendências', AppColors.error),
+            ...problemas.map((p) => _diagItem(p, AppColors.error, Icons.cancel_outlined)),
+            const SizedBox(height: 10),
+          ],
+          if (recomendacoes.isNotEmpty) ...[
+            _diagSub('Recomendações Técnicas', AppColors.warning),
+            ...recomendacoes.map((rec) => _diagItem(rec, AppColors.warning, Icons.lightbulb_outline)),
+          ],
+        ],
+      ),
+    );
+  }
 
   /// Retorna o ícone emoji para cada tipo de carga (sem depender de getter .icone)
   String _iconeCategoria(TipoCarga tipo) {
