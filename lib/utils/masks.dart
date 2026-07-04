@@ -100,6 +100,68 @@ class CrtInputFormatter extends TextInputFormatter {
   }
 }
 
+/// ART — Anotação de Responsabilidade Técnica (CREA)
+/// Formato: 13 dígitos numéricos  ex: 0123456789012
+class ArtInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue nv) {
+    final digits = nv.text.replaceAll(RegExp(r'\D'), '');
+    final limited = digits.length > 13 ? digits.substring(0, 13) : digits;
+    return TextEditingValue(
+      text: limited,
+      selection: TextSelection.collapsed(offset: limited.length),
+    );
+  }
+}
+
+/// RRT — Registro de Responsabilidade Técnica (CAU)
+/// Formato: RRT-AAAA-XXXXXXXX  ex: RRT-2024-00012345
+/// Aceita digitação livre ou com prefixo; mascara automaticamente
+class RrtInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue nv) {
+    // Remove tudo que não for dígito ou letra
+    String raw = nv.text.toUpperCase();
+
+    // Se o usuário apagou tudo, deixa vazio
+    if (raw.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    // Extrai somente dígitos para montar a máscara
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+
+    // Monta: RRT-AAAA-XXXXXXXX
+    final buf = StringBuffer('RRT');
+    if (digits.isEmpty) {
+      final s = buf.toString();
+      return TextEditingValue(
+        text: s,
+        selection: TextSelection.collapsed(offset: s.length),
+      );
+    }
+
+    // Ano: primeiros 4 dígitos
+    final ano = digits.length >= 4 ? digits.substring(0, 4) : digits;
+    buf.write('-$ano');
+
+    // Sequencial: próximos 8 dígitos
+    if (digits.length > 4) {
+      final seq = digits.substring(4, digits.length.clamp(4, 12));
+      buf.write('-$seq');
+    }
+
+    final s = buf.toString();
+    return TextEditingValue(
+      text: s,
+      selection: TextSelection.collapsed(offset: s.length),
+    );
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 // VALIDADORES
 // ════════════════════════════════════════════════════════════

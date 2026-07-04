@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../models/projeto.dart';
+import '../models/cliente.dart';
 import '../theme/app_theme.dart';
 import '../utils/masks.dart';
 import '../services/cep_service.dart';
+import 'clientes_screen.dart';
 
 class ProjetoDadosScreen extends StatefulWidget {
   final Projeto projeto;
@@ -27,6 +29,7 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
 
   // contratante
   TipoPessoa _tipoPessoa = TipoPessoa.juridica;
+  TipoDocumentoART _tipoArt = TipoDocumentoART.art;
   late TextEditingController _razaoCtrl;
   late TextEditingController _docCtrl;
   late TextEditingController _respCtrl;
@@ -56,6 +59,7 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
     _status     = p.status;
 
     _tipoPessoa  = c.tipoPessoa == 'fisica' ? TipoPessoa.fisica : TipoPessoa.juridica;
+    _tipoArt     = c.tipoArt;
     _razaoCtrl   = TextEditingController(text: c.razaoSocial);
     _docCtrl     = TextEditingController(text: c.documento);
     _respCtrl    = TextEditingController(text: c.responsavel);
@@ -212,6 +216,10 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
             icon: Icons.business,
             children: [
 
+              // Botão preencher a partir de cliente cadastrado
+              _buildBotaoSelecionarCliente(),
+              const SizedBox(height: 12),
+
               // Tipo de pessoa
               DropdownButtonFormField<TipoPessoa>(
                 value: _tipoPessoa,
@@ -235,7 +243,7 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
                     onChanged: (_) => _mark(),
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     validator: (v) {
-                      if (v == null || v.isEmpty) return null; // não obrigatório
+                      if (v == null || v.isEmpty) return null;
                       return Validators.validarCpfOuCnpj(v, _isPF);
                     },
                     decoration: InputDecoration(
@@ -245,11 +253,11 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _field(_artCtrl, 'ART/RRT nº', Icons.assignment, onChange: _mark),
-                ),
               ]),
+              const SizedBox(height: 12),
+
+              // ── ART / RRT ─────────────────────────────────
+              _buildArtRrtRow(),
               const SizedBox(height: 12),
 
               // Responsável + telefone + e-mail
@@ -400,6 +408,164 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
     );
   }
 
+  // ── Botão para preencher a partir de cliente cadastrado ──
+  Widget _buildBotaoSelecionarCliente() {
+    final prov = context.read<AppProvider>();
+    final temClientes = prov.clientes.isNotEmpty;
+
+    if (!temClientes) {
+      return GestureDetector(
+        onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
+          setState(() {}); // rebuid após retornar
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Sem clientes cadastrados — toque para cadastrar',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 13, color: AppColors.textSecondary.withValues(alpha: 0.5)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        final cliente = await showModalBottomSheet<Cliente>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          useSafeArea: true,
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+          builder: (_) => const ClienteSeletorSheet(),
+        );
+        if (cliente == null) return;
+        // Preenche todos os campos com os dados do cliente
+        setState(() {
+          _tipoPessoa       = cliente.tipoPessoa == 'fisica' ? TipoPessoa.fisica : TipoPessoa.juridica;
+          _tipoArt          = cliente.tipoArtEnum;
+          _razaoCtrl.text   = cliente.razaoSocial;
+          _docCtrl.text     = cliente.documento;
+          _respCtrl.text    = cliente.responsavel;
+          _telCtrl.text     = cliente.telefone;
+          _emailCtrl.text   = cliente.email;
+          _artCtrl.text     = cliente.art;
+          _cepCtrl.text     = cliente.cep;
+          _ruaCtrl.text     = cliente.rua;
+          _numCtrl.text     = cliente.numero;
+          _bairroCtrl.text  = cliente.bairro;
+          _cidadeCtrl.text  = cliente.cidade;
+          _estadoCtrl.text  = cliente.estado;
+          _dirty = true;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Dados de "${cliente.razaoSocial}" preenchidos!'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.people_outlined, size: 16, color: AppColors.primary.withValues(alpha: 0.8)),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Preencher a partir de cliente cadastrado',
+                style: TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w500),
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 13, color: AppColors.primary.withValues(alpha: 0.6)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Linha ART / RRT dinâmica ─────────────────────────────
+  Widget _buildArtRrtRow() {
+    final isRRT = _tipoArt == TipoDocumentoART.rrt;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Seletor ART | RRT
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: TipoDocumentoART.values.map((t) {
+              final sel = t == _tipoArt;
+              return GestureDetector(
+                onTap: () => setState(() {
+                  _tipoArt = t;
+                  _artCtrl.clear();
+                  _mark();
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(sel ? 6 : 0),
+                  ),
+                  child: Text(
+                    t.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: sel ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextFormField(
+            controller: _artCtrl,
+            keyboardType: isRRT ? TextInputType.text : TextInputType.number,
+            inputFormatters: isRRT ? [RrtInputFormatter()] : [ArtInputFormatter()],
+            onChanged: (_) => _mark(),
+            decoration: InputDecoration(
+              labelText: '${_tipoArt.label} nº',
+              hintText: _tipoArt.hint,
+              prefixIcon: const Icon(Icons.assignment_outlined, size: 18),
+              helperText: 'Emissão: ${_tipoArt.orgaoEmissor}',
+              helperStyle: const TextStyle(fontSize: 10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _salvar() async {
     final prov = context.read<AppProvider>();
     final contratante = EmpresaContratante(
@@ -410,6 +576,7 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
       telefone:    _telCtrl.text,
       email:       _emailCtrl.text,
       art:         _artCtrl.text,
+      tipoArt:     _tipoArt,
       cep:         _cepCtrl.text,
       rua:         _ruaCtrl.text,
       numero:      _numCtrl.text,

@@ -73,6 +73,38 @@ extension TensaoAlimentacaoExt on TensaoAlimentacao {
 enum TipoPessoa { fisica, juridica }
 enum CargoResponsavel { engenheiro, tecnico, profissional }
 
+/// Tipo de documento de responsabilidade técnica
+/// ART  → Anotação de Responsabilidade Técnica (CREA — Engenheiro/Técnico)
+/// RRT  → Registro de Responsabilidade Técnica (CAU — Arquiteto)
+enum TipoDocumentoART { art, rrt }
+
+extension TipoDocumentoARTExt on TipoDocumentoART {
+  String get label {
+    switch (this) {
+      case TipoDocumentoART.art: return 'ART';
+      case TipoDocumentoART.rrt: return 'RRT';
+    }
+  }
+  String get labelCompleto {
+    switch (this) {
+      case TipoDocumentoART.art: return 'ART – Anotação de Responsabilidade Técnica';
+      case TipoDocumentoART.rrt: return 'RRT – Registro de Responsabilidade Técnica';
+    }
+  }
+  String get orgaoEmissor {
+    switch (this) {
+      case TipoDocumentoART.art: return 'CREA';
+      case TipoDocumentoART.rrt: return 'CAU';
+    }
+  }
+  String get hint {
+    switch (this) {
+      case TipoDocumentoART.art: return '0000000000000 (13 dígitos)';
+      case TipoDocumentoART.rrt: return 'RRT-2024-00012345';
+    }
+  }
+}
+
 extension TipoPessoaExt on TipoPessoa {
   String get label => this == TipoPessoa.fisica ? 'Pessoa Física' : 'Pessoa Jurídica';
 }
@@ -194,7 +226,8 @@ class EmpresaContratante {
   String bairro;
   String cidade;
   String estado;
-  String art;
+  String art;              // número do documento ART ou RRT
+  TipoDocumentoART tipoArt; // qual tipo de documento (ART ou RRT)
 
   EmpresaContratante({
     this.razaoSocial = '',
@@ -210,6 +243,7 @@ class EmpresaContratante {
     this.cidade = '',
     this.estado = '',
     this.art = '',
+    this.tipoArt = TipoDocumentoART.art,
   });
 
   String get enderecoCompleto {
@@ -228,6 +262,7 @@ class EmpresaContratante {
     'responsavel': responsavel, 'telefone': telefone, 'email': email,
     'cep': cep, 'rua': rua, 'numero': numero, 'bairro': bairro,
     'cidade': cidade, 'estado': estado, 'art': art,
+    'tipoArt': tipoArt.name,   // 'art' | 'rrt'
     // legado
     'cnpj': documento, 'endereco': enderecoCompleto,
   };
@@ -246,6 +281,11 @@ class EmpresaContratante {
     cidade: m['cidade'] ?? '',
     estado: m['estado'] ?? '',
     art: m['art'] ?? '',
+    // retrocompat: dados antigos sem tipoArt → assume ART
+    tipoArt: TipoDocumentoART.values.firstWhere(
+      (t) => t.name == (m['tipoArt'] ?? ''),
+      orElse: () => TipoDocumentoART.art,
+    ),
   );
 }
 

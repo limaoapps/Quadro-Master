@@ -6,11 +6,13 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/app_provider.dart';
 import '../models/projeto.dart';
+import '../models/cliente.dart';
 import '../theme/app_theme.dart';
 import '../utils/masks.dart';
 import '../services/cep_service.dart';
 import 'projeto_screen.dart';
 import 'perfil_screen.dart';
+import 'clientes_screen.dart';
 
 class HistoricoScreen extends StatelessWidget {
   const HistoricoScreen({super.key});
@@ -65,8 +67,9 @@ class HistoricoScreen extends StatelessWidget {
                     color: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     onSelected: (value) {
-                      if (value == 'empresa') _abrirConfiguracoes(context);
-                      if (value == 'perfil') _abrirPerfil(context);
+                      if (value == 'empresa')  _abrirConfiguracoes(context);
+                      if (value == 'perfil')   _abrirPerfil(context);
+                      if (value == 'clientes') _abrirClientes(context);
                     },
                     itemBuilder: (_) => [
                       const PopupMenuItem(
@@ -86,6 +89,16 @@ class HistoricoScreen extends StatelessWidget {
                             Icon(Icons.business_outlined, color: AppColors.secondary, size: 20),
                             SizedBox(width: 10),
                             Text('Empresa Executora', style: TextStyle(fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'clientes',
+                        child: Row(
+                          children: [
+                            Icon(Icons.people_outlined, color: Color(0xFF00897B), size: 20),
+                            SizedBox(width: 10),
+                            Text('Clientes', style: TextStyle(fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -215,6 +228,13 @@ class HistoricoScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PerfilScreen()),
+    );
+  }
+
+  void _abrirClientes(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ClientesScreen()),
     );
   }
 }
@@ -630,24 +650,29 @@ class _NovoProjetoSheetState extends State<_NovoProjetoSheet> {
   TipoQuadro _tipo = TipoQuadro.qd;
   TensaoAlimentacao _tensao = TensaoAlimentacao.v220;
   NumeroFases _fases = NumeroFases.trifasico;
+  Cliente? _clienteSelecionado;
 
   @override
   Widget build(BuildContext context) {
     final screenH = MediaQuery.of(context).size.height;
+    final prov = context.watch<AppProvider>();
+    final temClientes = prov.clientes.isNotEmpty;
+
     return SafeArea(
       child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        constraints: BoxConstraints(maxHeight: screenH * 0.9),
+        constraints: BoxConstraints(maxHeight: screenH * 0.92),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Handle bar
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+              child: Center(child: Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
             ),
             Flexible(
               child: SingleChildScrollView(
@@ -656,42 +681,119 @@ class _NovoProjetoSheetState extends State<_NovoProjetoSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Novo Projeto', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    const Text('Novo Projeto',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 16),
+
+                    // Nome do projeto
                     TextFormField(
                       controller: _nomeCtrl,
-                      decoration: const InputDecoration(labelText: 'Nome do Projeto', hintText: 'Ex: QD-01 Térreo, QF Bombas...', prefixIcon: Icon(Icons.edit_note)),
+                      decoration: const InputDecoration(
+                        labelText: 'Nome do Projeto',
+                        hintText: 'Ex: QD-01 Térreo, QF Bombas...',
+                        prefixIcon: Icon(Icons.edit_note),
+                      ),
                       autofocus: true,
                     ),
                     const SizedBox(height: 12),
+
+                    // Tipo de quadro
                     DropdownButtonFormField<TipoQuadro>(
                       value: _tipo,
-                      decoration: const InputDecoration(labelText: 'Tipo de Quadro', prefixIcon: Icon(Icons.electrical_services)),
-                      items: TipoQuadro.values.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de Quadro',
+                        prefixIcon: Icon(Icons.electrical_services),
+                      ),
+                      items: TipoQuadro.values.map((t) => DropdownMenuItem(
+                        value: t, child: Text(t.label),
+                      )).toList(),
                       onChanged: (v) => setState(() => _tipo = v!),
                     ),
                     const SizedBox(height: 12),
+
+                    // Tensão + Fases
+                    Row(children: [
+                      Expanded(
+                        child: DropdownButtonFormField<TensaoAlimentacao>(
+                          value: _tensao,
+                          decoration: const InputDecoration(
+                            labelText: 'Tensão',
+                            prefixIcon: Icon(Icons.flash_on),
+                          ),
+                          items: TensaoAlimentacao.values.map((t) => DropdownMenuItem(
+                            value: t, child: Text(t.label),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _tensao = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<NumeroFases>(
+                          value: _fases,
+                          decoration: const InputDecoration(labelText: 'Fases'),
+                          items: NumeroFases.values.map((f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(f.label.split('–').first.trim()),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _fases = v!),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 16),
+
+                    // ── Seletor de cliente ──────────────────────────
+                    const Divider(height: 1),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<TensaoAlimentacao>(
-                            value: _tensao,
-                            decoration: const InputDecoration(labelText: 'Tensão', prefixIcon: Icon(Icons.flash_on)),
-                            items: TensaoAlimentacao.values.map((t) => DropdownMenuItem(value: t, child: Text(t.label))).toList(),
-                            onChanged: (v) => setState(() => _tensao = v!),
+                        const Icon(Icons.people_outline, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        const Text('Contratante',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                        const Spacer(),
+                        if (!temClientes)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
+                            },
+                            child: const Text(
+                              'Cadastrar clientes →',
+                              style: TextStyle(fontSize: 12, color: AppColors.primary, decoration: TextDecoration.underline),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<NumeroFases>(
-                            value: _fases,
-                            decoration: const InputDecoration(labelText: 'Fases'),
-                            items: NumeroFases.values.map((f) => DropdownMenuItem(value: f, child: Text(f.label.split('–').first.trim()))).toList(),
-                            onChanged: (v) => setState(() => _fases = v!),
-                          ),
-                        ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+
+                    if (temClientes) ...[
+                      // Card cliente selecionado ou botão para selecionar
+                      if (_clienteSelecionado != null)
+                        _buildClienteSelecionadoCard()
+                      else
+                        _buildBotaoSelecionarCliente(context),
+                    ] else
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Sem clientes cadastrados. Você pode adicionar depois em Configurações → Clientes.',
+                                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -710,11 +812,118 @@ class _NovoProjetoSheetState extends State<_NovoProjetoSheet> {
     );
   }
 
+  Widget _buildBotaoSelecionarCliente(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _selecionarCliente(context),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
+          borderRadius: BorderRadius.circular(10),
+          color: AppColors.primary.withValues(alpha: 0.03),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search, size: 18, color: AppColors.primary.withValues(alpha: 0.7)),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Selecionar cliente cadastrado...',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.primary.withValues(alpha: 0.6)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClienteSelecionadoCard() {
+    final c = _clienteSelecionado!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Center(
+              child: Text(c.iniciais,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(c.razaoSocial,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis),
+                if (c.documento.isNotEmpty || c.cidade.isNotEmpty)
+                  Text(
+                    [if (c.documento.isNotEmpty) c.documento, if (c.cidade.isNotEmpty) c.cidade].join(' · '),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz, size: 18, color: AppColors.primary),
+            tooltip: 'Trocar cliente',
+            onPressed: () => _selecionarCliente(context),
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            padding: EdgeInsets.zero,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+            tooltip: 'Remover',
+            onPressed: () => setState(() => _clienteSelecionado = null),
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selecionarCliente(BuildContext context) async {
+    final cliente = await showModalBottomSheet<Cliente>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      builder: (_) => const ClienteSeletorSheet(),
+    );
+    if (cliente != null) setState(() => _clienteSelecionado = cliente);
+  }
+
   Future<void> _criar() async {
     if (_nomeCtrl.text.trim().isEmpty) return;
     final prov = context.read<AppProvider>();
     final p = await prov.novoProjeto();
-    final updated = p.copyWith(nome: _nomeCtrl.text.trim(), tipoQuadro: _tipo, tensao: _tensao, numFases: _fases);
+    // Preenche dados do cliente selecionado (se houver)
+    final contratante = _clienteSelecionado?.toEmpresaContratante();
+    final updated = p.copyWith(
+      nome: _nomeCtrl.text.trim(),
+      tipoQuadro: _tipo,
+      tensao: _tensao,
+      numFases: _fases,
+      contratante: contratante,
+    );
     await prov.atualizarProjeto(updated);
     await prov.abrirProjeto(updated);
     if (mounted) {

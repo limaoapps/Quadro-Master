@@ -5,6 +5,7 @@ import '../models/carga.dart';
 import '../models/alimentador.dart';
 import '../models/resultado_projeto.dart';
 import '../models/perfil_usuario.dart';
+import '../models/cliente.dart';
 import '../services/storage_service.dart';
 
 class AppProvider extends ChangeNotifier {
@@ -13,6 +14,7 @@ class AppProvider extends ChangeNotifier {
   Projeto? _projetoAtual;
   EmpresaExecutora _empresaExecutora = EmpresaExecutora();
   PerfilUsuario _perfilUsuario = PerfilUsuario();
+  List<Cliente> _clientes = [];
   bool _carregando = false;
   int _tabIndex = 0;
   double _reservaPercent = 0;
@@ -21,6 +23,7 @@ class AppProvider extends ChangeNotifier {
   Projeto? get projetoAtual => _projetoAtual;
   EmpresaExecutora get empresaExecutora => _empresaExecutora;
   PerfilUsuario get perfilUsuario => _perfilUsuario;
+  List<Cliente> get clientes => _clientes;
   bool get carregando => _carregando;
   int get tabIndex => _tabIndex;
   double get reservaPercent => _reservaPercent;
@@ -44,9 +47,10 @@ class AppProvider extends ChangeNotifier {
   Future<void> inicializar() async {
     _carregando = true;
     notifyListeners();
-    _projetos = await StorageService.carregarProjetos();
+    _projetos         = await StorageService.carregarProjetos();
     _empresaExecutora = await StorageService.carregarEmpresaExecutora();
-    _perfilUsuario = await StorageService.carregarPerfilUsuario();
+    _perfilUsuario    = await StorageService.carregarPerfilUsuario();
+    _clientes         = await StorageService.carregarClientes();
     _carregando = false;
     notifyListeners();
   }
@@ -223,6 +227,29 @@ class AppProvider extends ChangeNotifier {
     final alimentadores = _projetoAtual!.alimentadores;
     if (alimentadores.isEmpty) return null;
     return ResultadoQGBT.calcular(alimentadores, reservaPercent: _reservaPercent);
+  }
+
+  // ── CLIENTES ─────────────────────────────────────────────
+  String get novoClienteId => _uuid.v4();
+
+  Future<Cliente> adicionarCliente(Cliente c) async {
+    _clientes.insert(0, c);
+    await StorageService.salvarCliente(c);
+    notifyListeners();
+    return c;
+  }
+
+  Future<void> atualizarCliente(Cliente c) async {
+    final idx = _clientes.indexWhere((x) => x.id == c.id);
+    if (idx >= 0) _clientes[idx] = c;
+    await StorageService.salvarCliente(c);
+    notifyListeners();
+  }
+
+  Future<void> excluirCliente(String id) async {
+    _clientes.removeWhere((c) => c.id == id);
+    await StorageService.excluirCliente(id);
+    notifyListeners();
   }
 
   // ── EMPRESA EXECUTORA ─────────────────────────────────────

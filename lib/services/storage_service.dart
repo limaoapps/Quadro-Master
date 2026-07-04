@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/projeto.dart';
 import '../models/perfil_usuario.dart';
+import '../models/cliente.dart';
 
 class StorageService {
-  static const _keyProjetos = 'quadro_master_projetos';
+  static const _keyProjetos         = 'quadro_master_projetos';
   static const _keyEmpresaExecutora = 'quadro_master_empresa_executora';
-  static const _keyPerfilUsuario = 'quadro_master_perfil_usuario';
+  static const _keyPerfilUsuario    = 'quadro_master_perfil_usuario';
+  // Nova chave — nunca conflita com as existentes
+  static const _keyClientes         = 'quadro_master_clientes_v1';
 
   static Future<List<Projeto>> carregarProjetos() async {
     final prefs = await SharedPreferences.getInstance();
@@ -74,5 +77,44 @@ class StorageService {
   static Future<void> salvarPerfilUsuario(PerfilUsuario perfil) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyPerfilUsuario, jsonEncode(perfil.toMap()));
+  }
+
+  // ── CLIENTES ──────────────────────────────────────────────
+
+  static Future<List<Cliente>> carregarClientes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_keyClientes);
+    if (raw == null) return [];
+    try {
+      final lista = jsonDecode(raw) as List<dynamic>;
+      return lista
+          .map((m) => Cliente.fromMap(m as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => b.modificadoEm.compareTo(a.modificadoEm));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> salvarClientes(List<Cliente> clientes) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyClientes, jsonEncode(clientes.map((c) => c.toMap()).toList()));
+  }
+
+  static Future<void> salvarCliente(Cliente cliente) async {
+    final lista = await carregarClientes();
+    final idx = lista.indexWhere((c) => c.id == cliente.id);
+    if (idx >= 0) {
+      lista[idx] = cliente;
+    } else {
+      lista.add(cliente);
+    }
+    await salvarClientes(lista);
+  }
+
+  static Future<void> excluirCliente(String id) async {
+    final lista = await carregarClientes();
+    lista.removeWhere((c) => c.id == id);
+    await salvarClientes(lista);
   }
 }
