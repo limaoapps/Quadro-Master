@@ -18,6 +18,9 @@ class ProjetoDadosScreen extends StatefulWidget {
   State<ProjetoDadosScreen> createState() => _ProjetoDadosScreenState();
 }
 
+// GlobalKey tipada para acesso externo (usado pelo disquete na AppBar)
+typedef ProjetoDadosKey = GlobalKey<_ProjetoDadosScreenState>;
+
 class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
   // projeto
   late TextEditingController _nomeCtrl;
@@ -565,6 +568,9 @@ class _ProjetoDadosScreenState extends State<ProjetoDadosScreen> {
       ],
     );
   }
+
+  /// Chamado externamente pelo disquete na AppBar de ProjetoScreen
+  Future<void> salvarExterno() => _salvar();
 
   Future<void> _salvar() async {
     final prov = context.read<AppProvider>();

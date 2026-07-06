@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_provider.dart';
 import 'theme/app_theme.dart';
@@ -31,6 +32,17 @@ class QuadroMasterApp extends StatelessWidget {
         title: 'Quadro Master',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
+        // Bug 4 Fix: menus de contexto e strings do sistema em pt-BR
+        locale: const Locale('pt', 'BR'),
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('pt', 'BR'),
+          Locale('en', 'US'),
+        ],
         home: const _SplashGate(),
       ),
     );

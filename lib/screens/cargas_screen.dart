@@ -447,7 +447,7 @@ class _CargaCard extends StatelessWidget {
       backgroundColor: Colors.transparent,
       constraints:
           BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.96),
-      builder: (_) =>
+      builder: (sheetCtx) =>
           _CargaFormSheet(cargaExistente: carga, projetoId: '', tipoQuadro: tipoQuadro),
     );
   }
@@ -1746,7 +1746,18 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   // Salvar
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _salvar() async {
-    if (!_formKey.currentState!.validate()) return;
+    // Força exibição de todos os erros de validação antes de prosseguir
+    final formValido = _formKey.currentState!.validate();
+    if (!formValido) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Corrija os campos marcados em vermelho'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     final prov = context.read<AppProvider>();
 
     final double potNominal;
@@ -1820,6 +1831,8 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       subtipoPainel: spainel,
       modelo:      _modeloCtrl.text,
       fabricante:  _fabricanteCtrl.text,
+      // Preserva status ativo da carga original ao editar
+      ativo:       widget.cargaExistente?.ativo ?? true,
     );
 
     if (_editMode) {

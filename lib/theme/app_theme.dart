@@ -127,5 +127,11 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
     dividerTheme: const DividerThemeData(color: AppColors.divider, thickness: 1),
+    // Bug 3 Fix: cursor livre em todos os TextFormField — sem seleção de palavra ao clicar
+    textSelectionTheme: const TextSelectionThemeData(
+      cursorColor: AppColors.primary,
+      selectionColor: Color(0x33FF6B00),
+      selectionHandleColor: AppColors.primary,
+    ),
   );
 }

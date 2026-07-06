@@ -8,6 +8,7 @@ import 'cargas_screen.dart';
 import 'analise_screen.dart';
 import 'relatorio_screen.dart';
 import 'alimentadores_screen.dart';
+import 'unifilar_screen.dart';
 
 class ProjetoScreen extends StatefulWidget {
   const ProjetoScreen({super.key});
@@ -18,6 +19,8 @@ class ProjetoScreen extends StatefulWidget {
 
 class _ProjetoScreenState extends State<ProjetoScreen> {
   int _currentIndex = 0;
+  // GlobalKey para acionar o _salvar() interno de ProjetoDadosScreen via disquete
+  final ProjetoDadosKey _dadosKey = ProjetoDadosKey();
 
   List<_TabItem> _buildTabs(TipoQuadro tipo) => [
     const _TabItem(icon: Icons.info_outline,         label: 'Projeto'),
@@ -40,6 +43,7 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
 
     final screens = [
       ProjetoDadosScreen(
+        key: _dadosKey,
         projeto: projeto,
         onSaved: () => setState(() => _currentIndex = 1),
       ),
@@ -78,11 +82,17 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
           IconButton(
             icon: const Icon(Icons.save_outlined, color: Colors.white),
             onPressed: () async {
-              await prov.salvarProjetoAtual();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Projeto salvo!'), duration: Duration(seconds: 1)),
-                );
+              if (_currentIndex == 0) {
+                // Aba "Projeto": aciona o _salvar() interno que lê os controllers
+                await _dadosKey.currentState?.salvarExterno();
+              } else {
+                // Outras abas: persiste o estado atual sem edições de formulário
+                await prov.salvarProjetoAtual();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Projeto salvo!'), duration: Duration(seconds: 1)),
+                  );
+                }
               }
             },
           ),
@@ -91,7 +101,13 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
             color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (value) async {
-              if (value == 'delete') {
+              if (value == 'unifilar') {
+                if (prov.projetoAtual != null && context.mounted) {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => UnifilarScreen(projeto: prov.projetoAtual!),
+                  ));
+                }
+              } else if (value == 'delete') {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -128,6 +144,17 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
               }
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'unifilar',
+                child: Row(
+                  children: [
+                    Icon(Icons.schema_outlined, color: Color(0xFF1565C0), size: 20),
+                    SizedBox(width: 10),
+                    Text('Diagrama Unifilar', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1565C0))),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'duplicate',
                 child: Row(
