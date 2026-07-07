@@ -14,8 +14,22 @@ import 'projeto_screen.dart';
 import 'perfil_screen.dart';
 import 'clientes_screen.dart';
 
-class HistoricoScreen extends StatelessWidget {
+class HistoricoScreen extends StatefulWidget {
   const HistoricoScreen({super.key});
+
+  @override
+  State<HistoricoScreen> createState() => _HistoricoScreenState();
+}
+
+class _HistoricoScreenState extends State<HistoricoScreen> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _termoBusca = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +38,22 @@ class HistoricoScreen extends StatelessWidget {
         if (prov.carregando) {
           return const Center(child: CircularProgressIndicator());
         }
+
+        // Filtra projetos pelo termo de busca
+        final todosProjetos = prov.projetos;
+        final projetosFiltrados = _termoBusca.isEmpty
+            ? todosProjetos
+            : todosProjetos
+                .where((p) =>
+                    p.nome.toLowerCase().contains(_termoBusca.toLowerCase()) ||
+                    p.tipoQuadro.sigla
+                        .toLowerCase()
+                        .contains(_termoBusca.toLowerCase()) ||
+                    (p.contratante.razaoSocial
+                        .toLowerCase()
+                        .contains(_termoBusca.toLowerCase())))
+                .toList();
+
         return Scaffold(
           backgroundColor: AppColors.background,
           body: CustomScrollView(
@@ -113,14 +143,54 @@ class HistoricoScreen extends StatelessWidget {
                   child: _CardCracha(prov: prov),
                 ),
               ),
+              // Barra de busca
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _termoBusca = v),
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar projetos...',
+                      prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                      suffixIcon: _termoBusca.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _termoBusca = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.divider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
-                          '${prov.projetos.length} projeto${prov.projetos.length != 1 ? "s" : ""}',
+                          _termoBusca.isEmpty
+                              ? '${todosProjetos.length} projeto${todosProjetos.length != 1 ? "s" : ""}'
+                              : '${projetosFiltrados.length} resultado${projetosFiltrados.length != 1 ? "s" : ""} para "$_termoBusca"',
                           style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                         ),
                       ),
@@ -129,13 +199,17 @@ class HistoricoScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              if (prov.projetos.isEmpty)
-                SliverFillRemaining(child: _buildEmpty(context))
+              if (projetosFiltrados.isEmpty)
+                SliverFillRemaining(
+                  child: _termoBusca.isNotEmpty
+                      ? _buildSemResultados()
+                      : _buildEmpty(context),
+                )
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (ctx, i) => _ProjetoCard(projeto: prov.projetos[i]),
-                    childCount: prov.projetos.length,
+                    (ctx, i) => _ProjetoCard(projeto: projetosFiltrados[i]),
+                    childCount: projetosFiltrados.length,
                   ),
                 ),
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -165,6 +239,34 @@ class HistoricoScreen extends StatelessWidget {
           Icon(Icons.sort, size: 14, color: AppColors.primary),
           SizedBox(width: 4),
           Text('Recentes', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSemResultados() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.search_off, size: 40, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Nenhum projeto encontrado',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tente outro termo de busca',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
@@ -240,7 +342,7 @@ class HistoricoScreen extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card Crachá — apresentação do profissional + 5 projetos recentes
+// Card Crachá — apresentação do profissional
 // ─────────────────────────────────────────────────────────────────────────────
 class _CardCracha extends StatelessWidget {
   final AppProvider prov;
@@ -250,8 +352,6 @@ class _CardCracha extends StatelessWidget {
   Widget build(BuildContext context) {
     final perfil = prov.perfilUsuario;
     final projetos = prov.projetos;
-    final recentes = projetos.take(5).toList();
-    final fmt = DateFormat('dd/MM/yy');
     final temDados = perfil.nome.isNotEmpty || perfil.registro.isNotEmpty;
 
     return Container(
@@ -329,38 +429,49 @@ class _CardCracha extends StatelessWidget {
             ),
           ),
 
-          // ── Divisor ───────────────────────────────────────────────
-          if (recentes.isNotEmpty) ...[
-            Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
-
-            // ── Últimos 5 projetos ────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.history, size: 13, color: Colors.white54),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'PROJETOS RECENTES',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white54, letterSpacing: 1),
-                  ),
-                ],
-              ),
+          // ── Divisor + estatísticas rápidas ────────────────────────
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statItem(
+                  icon: Icons.folder_outlined,
+                  valor: '${projetos.length}',
+                  rotulo: 'Projetos',
+                ),
+                Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.15)),
+                _statItem(
+                  icon: Icons.check_circle_outline,
+                  valor: '${projetos.where((p) => p.status == StatusProjeto.concluido).length}',
+                  rotulo: 'Concluídos',
+                ),
+                Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.15)),
+                _statItem(
+                  icon: Icons.edit_outlined,
+                  valor: '${projetos.where((p) => p.status == StatusProjeto.elaboracao).length}',
+                  rotulo: 'Em andamento',
+                ),
+              ],
             ),
-            ...recentes.map((p) => _projetoRow(context, p, fmt)),
-            const SizedBox(height: 8),
-          ] else ...[
-            Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Text(
-                'Nenhum projeto ainda',
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45)),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _statItem({required IconData icon, required String valor, required String rotulo}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.white60),
+        const SizedBox(height: 3),
+        Text(valor,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        Text(rotulo,
+            style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.55))),
+      ],
     );
   }
 
@@ -390,55 +501,6 @@ class _CardCracha extends StatelessWidget {
     );
   }
 
-  Widget _projetoRow(BuildContext context, Projeto p, DateFormat fmt) {
-    final statusColors = {
-      StatusProjeto.elaboracao: AppColors.warning,
-      StatusProjeto.concluido: AppColors.success,
-      StatusProjeto.revisao: AppColors.primary,
-    };
-    final sc = statusColors[p.status]!;
-
-    return InkWell(
-      onTap: () async {
-        final provider = context.read<AppProvider>();
-        await provider.abrirProjeto(p);
-        if (context.mounted) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProjetoScreen()));
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        child: Row(
-          children: [
-            Container(
-              width: 6, height: 6,
-              decoration: BoxDecoration(color: sc, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                p.nome,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              p.tipoQuadro.sigla,
-              style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.55)),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              fmt.format(p.modificadoEm),
-              style: TextStyle(fontSize: 10, color: Colors.white.withValues(alpha: 0.45)),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, size: 14, color: Colors.white38),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

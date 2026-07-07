@@ -28,6 +28,7 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
         ? const _TabItem(icon: Icons.account_tree,   label: 'Alimentadores')
         : const _TabItem(icon: Icons.cable,          label: 'Cargas'),
     const _TabItem(icon: Icons.analytics_outlined,   label: 'Análise'),
+    const _TabItem(icon: Icons.schema_outlined,      label: 'Unifilar'),
     const _TabItem(icon: Icons.description_outlined, label: 'Relatório'),
   ];
 
@@ -51,6 +52,7 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
           ? AlimentadoresScreen(projeto: projeto)
           : CargasScreen(projeto: projeto),
       AnaliseScreen(projeto: projeto),
+      UnifilarTab(projeto: projeto),
       RelatorioScreen(projeto: projeto),
     ];
 
@@ -101,13 +103,7 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
             color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (value) async {
-              if (value == 'unifilar') {
-                if (prov.projetoAtual != null && context.mounted) {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UnifilarScreen(projeto: prov.projetoAtual!),
-                  ));
-                }
-              } else if (value == 'delete') {
+              if (value == 'delete') {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -144,17 +140,6 @@ class _ProjetoScreenState extends State<ProjetoScreen> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'unifilar',
-                child: Row(
-                  children: [
-                    Icon(Icons.schema_outlined, color: Color(0xFF1565C0), size: 20),
-                    SizedBox(width: 10),
-                    Text('Diagrama Unifilar', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1565C0))),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'duplicate',
                 child: Row(

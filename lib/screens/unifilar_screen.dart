@@ -1,31 +1,34 @@
 // lib/screens/unifilar_screen.dart
 // Módulo Diagrama Unifilar NBR 5410
+// Versão Session 9 — aba integrada, preview SVG real, auto-barramento
 
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../models/unifilar.dart';
+import '../models/carga.dart';
 import '../models/projeto.dart';
 import '../theme/app_theme.dart';
 import '../widgets/unifilar_svg_builder.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tela principal
+// Widget principal — projetado para ser usado como aba no ProjetoScreen
+// (não possui Scaffold/AppBar próprios)
 // ─────────────────────────────────────────────────────────────────────────────
-class UnifilarScreen extends StatefulWidget {
+class UnifilarTab extends StatefulWidget {
   final Projeto projeto;
-  const UnifilarScreen({super.key, required this.projeto});
+  const UnifilarTab({super.key, required this.projeto});
 
   @override
-  State<UnifilarScreen> createState() => _UnifilarScreenState();
+  State<UnifilarTab> createState() => _UnifilarTabState();
 }
 
-class _UnifilarScreenState extends State<UnifilarScreen> {
+class _UnifilarTabState extends State<UnifilarTab> {
   late DiagramaUnifilar _diagrama;
   bool _previewMode = false;
   String? _svgPreview;
@@ -33,31 +36,63 @@ class _UnifilarScreenState extends State<UnifilarScreen> {
   @override
   void initState() {
     super.initState();
-    _diagrama = _criarDiagramaInicial();
+    _diagrama = _criarDiagramaDosProjeto();
   }
 
-  DiagramaUnifilar _criarDiagramaInicial() {
+  /// Constrói o diagrama automaticamente a partir das cargas do projeto
+  DiagramaUnifilar _criarDiagramaDosProjeto() {
     final p = widget.projeto;
     final c = p.contratante;
     final now = DateTime.now();
     final dataStr =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
 
+    // Filtra apenas cargas ativas
+    final cargasAtivas = p.cargas.where((cg) => cg.ativo).toList();
+
+    // Calcula corrente total das cargas para dimensionar barramento
+    final correnteTotal = cargasAtivas.fold<double>(
+      0.0,
+      (sum, cg) => sum + cg.corrente,
+    );
+    // Adiciona 25% de margem de segurança conforme NBR 5410
+    final correnteGeral = (correnteTotal * 1.25).ceilToDouble();
+    final correnteFinal = correnteGeral < 25 ? 25.0 : correnteGeral;
+
+    // Barramento calculado automaticamente
+    final barramentoAuto = TabelaBarramento.calcularBarramento(correnteFinal);
+
+    // Detecta se é trifásico pela maioria das cargas
+    final trifasicas = cargasAtivas.where((cg) =>
+        cg.ligacao == LigacaoCarga.trifasico).length;
+    final faseGeral =
+        trifasicas > cargasAtivas.length / 2 ? FaseUnifilar.rst : FaseUnifilar.r;
+
+    // Converte as cargas em circuitos do diagrama unifilar
+    final circuitos = <CircuitoUnifilar>[];
+    for (int i = 0; i < cargasAtivas.length; i++) {
+      final cg = cargasAtivas[i];
+      circuitos.add(_cargaParaCircuito(cg, i + 1));
+    }
+
+    // Determina origem com base no tipo de quadro
+    final vemDo = _inferirVemDo(p);
+
     return DiagramaUnifilar(
       nomeProjeto: p.nome,
       numeroDocumento: DiagramaUnifilar.gerarNumeroDocumento(),
       data: dataStr,
       revisao: 0,
-      vemDo: 'MEDIDOR / QUADRO GERAL',
-      correnteGeral: 40,
-      caboGeral: 10,
-      faseGeral: FaseUnifilar.rst,
+      vemDo: vemDo,
+      correnteGeral: correnteFinal,
+      caboGeral: _sugerirCabo(correnteFinal),
+      faseGeral: faseGeral,
       temDR: false,
-      correnteDR: 40,
+      correnteDR: correnteFinal,
       temDPS: false,
       dpskA: 45,
-      dpsV: 380,
-      barramento: TabelaBarramento.calcularBarramento(40),
+      dpsV: p.tensao == TensaoAlimentacao.v380 ? 380 : 220,
+      barramento: barramentoAuto,
       quadroAterrado: true,
       exibirTerra: true,
       exibirNeutro: true,
@@ -74,8 +109,77 @@ class _UnifilarScreenState extends State<UnifilarScreen> {
           .where((s) => s.isNotEmpty).join(', '),
       clienteTelefone: c.telefone,
       clienteEmail: c.email,
-      circuitos: [],
+      circuitos: circuitos,
     );
+  }
+
+  /// Converte uma Carga em CircuitoUnifilar
+  CircuitoUnifilar _cargaParaCircuito(Carga cg, int numero) {
+    // Fase do unifilar baseada na ligação da carga
+    final fase = _ligacaoParaFase(cg.ligacao, cg.fase);
+
+    // Corrente já calculada na model da Carga
+    final corrente = cg.corrente;
+
+    // Bitola sugerida
+    final bitola = cg.condutorSugerido;
+
+    // DR: cargas TUG e TUE herdam utilização de DR
+    final utilizaDR = cg.utilizaDR;
+
+    // Tensão da carga
+    final tensao = cg.tensao;
+
+    // Potência em VA
+    final potenciaVA = cg.potenciaAparente;
+
+    return CircuitoUnifilar(
+      id: const Uuid().v4(),
+      fase: fase,
+      corrente: corrente,
+      curva: CurvaDisjuntor.c,
+      utilizaDR: utilizaDR,
+      bitola: bitola,
+      potencia: potenciaVA,
+      unidadePotencia: UnidadePotencia.va,
+      tensao: tensao,
+      codigo: 'CIRC. $numero',
+      descricao: cg.descricao,
+    );
+  }
+
+  FaseUnifilar _ligacaoParaFase(LigacaoCarga ligacao, FaseCarga faseCarga) {
+    if (ligacao == LigacaoCarga.trifasico) return FaseUnifilar.rst;
+    if (ligacao == LigacaoCarga.bifasico) return FaseUnifilar.rs;
+    // Monofásico: mapeia pela fase
+    switch (faseCarga) {
+      case FaseCarga.b: return FaseUnifilar.s;
+      case FaseCarga.c: return FaseUnifilar.t;
+      default:          return FaseUnifilar.r;
+    }
+  }
+
+  String _inferirVemDo(Projeto p) {
+    switch (p.tipoQuadro) {
+      case TipoQuadro.qgbt:         return 'CONCESSIONARIA / TRANSFORMADOR';
+      case TipoQuadro.qd:           return 'QGBT / QUADRO GERAL';
+      case TipoQuadro.qf:           return 'QGBT / QUADRO GERAL';
+      case TipoQuadro.painelEletrico: return 'QGBT / QUADRO DE FORCA';
+    }
+  }
+
+  double _sugerirCabo(double corrente) {
+    if (corrente <= 13)  return 1.5;
+    if (corrente <= 18)  return 2.5;
+    if (corrente <= 24)  return 4.0;
+    if (corrente <= 32)  return 6.0;
+    if (corrente <= 43)  return 10.0;
+    if (corrente <= 57)  return 16.0;
+    if (corrente <= 75)  return 25.0;
+    if (corrente <= 92)  return 35.0;
+    if (corrente <= 120) return 50.0;
+    if (corrente <= 150) return 70.0;
+    return 95.0;
   }
 
   void _update(DiagramaUnifilar novo) => setState(() => _diagrama = novo);
@@ -95,13 +199,12 @@ class _UnifilarScreenState extends State<UnifilarScreen> {
       final pageFormat = paisagem ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
 
       final doc = pw.Document();
-      final svgImage = await _svgToPwWidget(svg);
 
       doc.addPage(
         pw.Page(
           pageFormat: pageFormat,
           margin: pw.EdgeInsets.zero,
-          build: (ctx) => svgImage,
+          build: (ctx) => pw.SvgImage(svg: svg),
         ),
       );
 
@@ -112,15 +215,13 @@ class _UnifilarScreenState extends State<UnifilarScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao gerar PDF: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Erro ao gerar PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
-  }
-
-  Future<pw.Widget> _svgToPwWidget(String svg) async {
-    // Renderiza o SVG como imagem no PDF via SvgImage
-    return pw.SvgImage(svg: svg);
   }
 
   @override
@@ -134,41 +235,17 @@ class _UnifilarScreenState extends State<UnifilarScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.secondary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Diagrama Unifilar',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-            Text('NBR 5410', style: TextStyle(fontSize: 11, color: Colors.white70)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.white),
-            tooltip: 'Pré-visualizar',
-            onPressed: _gerarPreview,
-          ),
-        ],
-      ),
-      body: _FormularioUnifilar(
-        diagrama: _diagrama,
-        onChanged: _update,
-        onDesenhar: _gerarPreview,
-      ),
+    return _FormularioUnifilar(
+      diagrama: _diagrama,
+      projeto: widget.projeto,
+      onChanged: _update,
+      onDesenhar: _gerarPreview,
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Preview do SVG
+// Tela de Preview do SVG — com rendering real via flutter_svg
 // ─────────────────────────────────────────────────────────────────────────────
 class _PreviewPage extends StatelessWidget {
   final String svg;
@@ -185,118 +262,115 @@ class _PreviewPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[300],
-      appBar: AppBar(
-        backgroundColor: AppColors.secondary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-          onPressed: onVoltar,
-        ),
-        title: const Text('Pré-visualização',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-            tooltip: 'Exportar PDF',
-            onPressed: onExportarPDF,
+    return Column(
+      children: [
+        // Header da preview
+        Container(
+          color: AppColors.secondary,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+                    onPressed: onVoltar,
+                    tooltip: 'Voltar ao formulário',
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Pré-visualização',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                    tooltip: 'Exportar PDF',
+                    onPressed: onExportarPDF,
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+        ),
+        // Área do SVG
+        Expanded(
           child: Container(
+            color: Colors.grey[300],
+            child: InteractiveViewer(
+              minScale: 0.3,
+              maxScale: 3.0,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    child: SvgPicture.string(
+                      svg,
+                      width: 794,
+                      height: 1123,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Botão exportar PDF na parte inferior com SafeArea
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
               ],
             ),
-            child: _SvgView(svg: svg),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onExportarPDF,
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text(
+                  'EXPORTAR PDF',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// Widget para exibir SVG como imagem (via Image.memory do SVG renderizado)
-class _SvgView extends StatelessWidget {
-  final String svg;
-  const _SvgView({required this.svg});
-
-  @override
-  Widget build(BuildContext context) {
-    // Exibe o SVG como HTML embed no web, ou como SvgPicture no mobile
-    return SizedBox(
-      width: 794,
-      height: 1123,
-      child: kIsWeb
-          ? _SvgWebView(svg: svg)
-          : _SvgCustomPaint(svg: svg),
-    );
-  }
-}
-
-// Web: embed SVG via Image.memory de bytes
-class _SvgWebView extends StatelessWidget {
-  final String svg;
-  const _SvgWebView({required this.svg});
-
-  @override
-  Widget build(BuildContext context) {
-    // No web, usa Image com data URI do SVG
-    final bytes = utf8.encode(svg);
-    return Image.memory(
-      Uint8List.fromList(bytes),
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _SvgFallback(svg: svg),
-    );
-  }
-}
-
-// Fallback: texto SVG raw num container scrollável
-class _SvgFallback extends StatelessWidget {
-  final String svg;
-  const _SvgFallback({required this.svg});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(8),
-      child: _SvgCustomPaint(svg: svg),
-    );
-  }
-}
-
-// CustomPaint fallback (desenha o diagrama direto no canvas Flutter)
-class _SvgCustomPaint extends StatelessWidget {
-  final String svg;
-  const _SvgCustomPaint({required this.svg});
-
-  @override
-  Widget build(BuildContext context) {
-    // Como fallback, mostra uma mensagem de que o SVG foi gerado
-    return Container(
-      color: Colors.white,
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 48),
-          const SizedBox(height: 12),
-          const Text('SVG gerado com sucesso!',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Use "Exportar PDF" para visualizar\ne imprimir o diagrama.',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 16),
-          Text('Tamanho: ${svg.length} bytes',
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -306,11 +380,13 @@ class _SvgCustomPaint extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _FormularioUnifilar extends StatefulWidget {
   final DiagramaUnifilar diagrama;
+  final Projeto projeto;
   final ValueChanged<DiagramaUnifilar> onChanged;
   final VoidCallback onDesenhar;
 
   const _FormularioUnifilar({
     required this.diagrama,
+    required this.projeto,
     required this.onChanged,
     required this.onDesenhar,
   });
@@ -370,14 +446,16 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
       _nomeCtrl, _docCtrl, _dataCtrl, _revCtrl, _vemDoCtrl,
       _corrGeralCtrl, _caboGeralCtrl, _corrDRCtrl, _dpskACtrl, _dpsVCtrl,
       _barramentoCtrl, _fdCtrl, _escalaCtrl,
-    ]) { c.dispose(); }
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   void _syncDiagrama() {
     final corr = double.tryParse(_corrGeralCtrl.text) ?? _d.correnteGeral;
+    final barrManual = _barramentoCtrl.text.trim();
     final barrAuto = TabelaBarramento.calcularBarramento(corr);
-    final barrManual = _barramentoCtrl.text;
     final barrFinal = barrManual.isNotEmpty ? barrManual : barrAuto;
 
     final novo = _d.copyWith(
@@ -419,7 +497,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white54,
             tabs: const [
-              Tab(text: 'Informações'),
+              Tab(text: 'Informacoes'),
               Tab(text: 'Circuitos'),
               Tab(text: 'Visual'),
             ],
@@ -431,44 +509,82 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
             children: [
               _TabInfomacoes(
                 d: _d,
-                nomeCtrl: _nomeCtrl, docCtrl: _docCtrl, dataCtrl: _dataCtrl,
-                revCtrl: _revCtrl, vemDoCtrl: _vemDoCtrl,
-                corrGeralCtrl: _corrGeralCtrl, caboGeralCtrl: _caboGeralCtrl,
-                corrDRCtrl: _corrDRCtrl, dpskACtrl: _dpskACtrl, dpsVCtrl: _dpsVCtrl,
-                barramentoCtrl: _barramentoCtrl, fdCtrl: _fdCtrl,
-                onChanged: (d) { setState(() => _d = d); widget.onChanged(d); },
+                nomeCtrl: _nomeCtrl,
+                docCtrl: _docCtrl,
+                dataCtrl: _dataCtrl,
+                revCtrl: _revCtrl,
+                vemDoCtrl: _vemDoCtrl,
+                corrGeralCtrl: _corrGeralCtrl,
+                caboGeralCtrl: _caboGeralCtrl,
+                corrDRCtrl: _corrDRCtrl,
+                dpskACtrl: _dpskACtrl,
+                dpsVCtrl: _dpsVCtrl,
+                barramentoCtrl: _barramentoCtrl,
+                fdCtrl: _fdCtrl,
+                onChanged: (d) {
+                  setState(() => _d = d);
+                  widget.onChanged(d);
+                },
                 onSync: _syncDiagrama,
                 onAutoBarramento: _atualizarBarramentoAuto,
               ),
               _TabCircuitos(
                 d: _d,
-                onChanged: (d) { setState(() => _d = d); widget.onChanged(d); },
+                projeto: widget.projeto,
+                onChanged: (d) {
+                  setState(() => _d = d);
+                  widget.onChanged(d);
+                },
               ),
               _TabVisual(
                 d: _d,
                 escalaCtrl: _escalaCtrl,
-                onChanged: (d) { setState(() => _d = d); widget.onChanged(d); },
+                onChanged: (d) {
+                  setState(() => _d = d);
+                  widget.onChanged(d);
+                },
                 onSync: _syncDiagrama,
               ),
             ],
           ),
         ),
-        // Botão Desenhar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, -2))],
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () { _syncDiagrama(); widget.onDesenhar(); },
-              icon: const Icon(Icons.draw_outlined),
-              label: const Text('DESENHAR', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 1)),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        // Botão Desenhar — SafeArea para não ficar por trás do navbar do sistema
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _syncDiagrama();
+                  widget.onDesenhar();
+                },
+                icon: const Icon(Icons.draw_outlined),
+                label: const Text(
+                  'DESENHAR DIAGRAMA',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
           ),
@@ -491,11 +607,21 @@ class _TabInfomacoes extends StatelessWidget {
   final VoidCallback onAutoBarramento;
 
   const _TabInfomacoes({
-    required this.d, required this.nomeCtrl, required this.docCtrl,
-    required this.dataCtrl, required this.revCtrl, required this.vemDoCtrl,
-    required this.corrGeralCtrl, required this.caboGeralCtrl, required this.corrDRCtrl,
-    required this.dpskACtrl, required this.dpsVCtrl, required this.barramentoCtrl,
-    required this.fdCtrl, required this.onChanged, required this.onSync,
+    required this.d,
+    required this.nomeCtrl,
+    required this.docCtrl,
+    required this.dataCtrl,
+    required this.revCtrl,
+    required this.vemDoCtrl,
+    required this.corrGeralCtrl,
+    required this.caboGeralCtrl,
+    required this.corrDRCtrl,
+    required this.dpskACtrl,
+    required this.dpsVCtrl,
+    required this.barramentoCtrl,
+    required this.fdCtrl,
+    required this.onChanged,
+    required this.onSync,
     required this.onAutoBarramento,
   });
 
@@ -503,144 +629,208 @@ class _TabInfomacoes extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _secLabel('Identificação'),
-        _row([
-          _field(nomeCtrl, 'Nome do Projeto', Icons.folder_open, onSync),
-          _field(docCtrl, 'Nº Documento', Icons.numbers, onSync),
-        ]),
-        const SizedBox(height: 10),
-        _row([
-          _field(dataCtrl, 'Data', Icons.calendar_today, onSync),
-          _field(revCtrl, 'Revisão', Icons.loop, onSync, tipo: TextInputType.number),
-        ]),
-        const SizedBox(height: 16),
-
-        _secLabel('Entrada do Quadro'),
-        _field(vemDoCtrl, 'Vem do (origem)', Icons.input, onSync),
-        const SizedBox(height: 10),
-
-        // Disjuntor Geral
-        _boxCard('DISJ. GERAL', AppColors.secondary, [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _secLabel('Identificacao'),
           _row([
-            _field(corrGeralCtrl, 'Corrente (A)', Icons.electric_bolt, onSync,
-                tipo: TextInputType.number),
-            _field(caboGeralCtrl, 'Cabo (mm²)', Icons.cable, onSync,
-                tipo: TextInputType.number),
+            _field(nomeCtrl, 'Nome do Projeto', Icons.folder_open, onSync),
+            _field(docCtrl, 'No. Documento', Icons.numbers, onSync),
           ]),
           const SizedBox(height: 10),
-          _faseGeralRow(context),
-        ]),
-        const SizedBox(height: 10),
-
-        // DR geral
-        _checkCard(context, 'DR', d.temDR,
-          onToggle: (v) => onChanged(d.copyWith(temDR: v)),
-          child: _field(corrDRCtrl, 'Corrente DR (A)', Icons.shield, onSync,
-              tipo: TextInputType.number),
-        ),
-        const SizedBox(height: 10),
-
-        // DPS
-        _checkCard(context, 'DPS', d.temDPS,
-          onToggle: (v) => onChanged(d.copyWith(temDPS: v)),
-          child: _row([
-            _field(dpskACtrl, 'kA', Icons.flash_on, onSync, tipo: TextInputType.number),
-            _field(dpsVCtrl, 'V', Icons.electric_meter, onSync, tipo: TextInputType.number),
+          _row([
+            _field(dataCtrl, 'Data', Icons.calendar_today, onSync),
+            _field(revCtrl, 'Revisao', Icons.loop, onSync, tipo: TextInputType.number),
           ]),
-        ),
-        const SizedBox(height: 10),
+          const SizedBox(height: 16),
 
-        // Barramento
-        _secLabel('Barramento'),
-        Row(children: [
-          Expanded(child: _field(barramentoCtrl, 'Barramento (cobre)', Icons.view_column, onSync)),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            onPressed: onAutoBarramento,
-            icon: const Icon(Icons.auto_fix_high, size: 16),
-            label: const Text('Auto', style: TextStyle(fontSize: 12)),
-          ),
-        ]),
-        const SizedBox(height: 10),
+          _secLabel('Entrada do Quadro'),
+          _field(vemDoCtrl, 'Vem do (origem)', Icons.input, onSync),
+          const SizedBox(height: 10),
 
-        // Checkboxes
-        _secLabel('Exibição'),
-        Wrap(spacing: 8, children: [
-          FilterChip(
-            label: const Text('Quadro aterrado'),
-            selected: d.quadroAterrado,
-            onSelected: (v) => onChanged(d.copyWith(quadroAterrado: v)),
-          ),
-          FilterChip(
-            label: const Text('Exibir Terra'),
-            selected: d.exibirTerra,
-            onSelected: (v) => onChanged(d.copyWith(exibirTerra: v)),
-          ),
-          FilterChip(
-            label: const Text('Exibir Neutro'),
-            selected: d.exibirNeutro,
-            onSelected: (v) => onChanged(d.copyWith(exibirNeutro: v)),
-          ),
-        ]),
-        const SizedBox(height: 16),
+          // Disjuntor Geral
+          _boxCard('DISJ. GERAL', AppColors.secondary, [
+            _row([
+              _field(corrGeralCtrl, 'Corrente (A)', Icons.electric_bolt, onSync,
+                  tipo: TextInputType.number),
+              _field(caboGeralCtrl, 'Cabo (mm2)', Icons.cable, onSync,
+                  tipo: TextInputType.number),
+            ]),
+            const SizedBox(height: 10),
+            _faseGeralRow(context),
+          ]),
+          const SizedBox(height: 10),
 
-        // Potência
-        _secLabel('Potência'),
-        _row([
-          _dropdownField<UnidadePotencia>(
-            'Circuitos', d.unidadeCircuito,
-            UnidadePotencia.values.where((u) =>
-              u == UnidadePotencia.va || u == UnidadePotencia.w).toList(),
-            (v) => v!.label,
-            (v) => onChanged(d.copyWith(unidadeCircuito: v!)),
+          // DR geral
+          _checkCard(
+            context,
+            'DR Geral',
+            d.temDR,
+            onToggle: (v) => onChanged(d.copyWith(temDR: v)),
+            child: _field(corrDRCtrl, 'Corrente DR (A)', Icons.shield, onSync,
+                tipo: TextInputType.number),
           ),
-          _dropdownField<UnidadePotencia>(
-            'Quadro', d.unidadeQuadro,
-            UnidadePotencia.values.where((u) =>
-              u == UnidadePotencia.kva || u == UnidadePotencia.kw).toList(),
-            (v) => v!.label,
-            (v) => onChanged(d.copyWith(unidadeQuadro: v!)),
+          const SizedBox(height: 10),
+
+          // DPS
+          _checkCard(
+            context,
+            'DPS',
+            d.temDPS,
+            onToggle: (v) => onChanged(d.copyWith(temDPS: v)),
+            child: _row([
+              _field(dpskACtrl, 'kA', Icons.flash_on, onSync, tipo: TextInputType.number),
+              _field(dpsVCtrl, 'V', Icons.electric_meter, onSync, tipo: TextInputType.number),
+            ]),
           ),
-        ]),
-        const SizedBox(height: 10),
-        _field(fdCtrl, 'Fator de Demanda (%)', Icons.percent, onSync,
-            tipo: const TextInputType.numberWithOptions(decimal: true)),
-        const SizedBox(height: 24),
-      ]),
+          const SizedBox(height: 10),
+
+          // Barramento — com botão Auto destacado
+          _secLabel('Barramento'),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_fix_high, size: 14, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Calculado automaticamente pelas cargas',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _field(barramentoCtrl, 'Barramento (cobre)',
+                          Icons.view_column, onSync),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: onAutoBarramento,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Recalcular', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary.withValues(alpha: 0.6)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Checkboxes
+          _secLabel('Exibicao'),
+          Wrap(spacing: 8, children: [
+            FilterChip(
+              label: const Text('Quadro aterrado'),
+              selected: d.quadroAterrado,
+              onSelected: (v) => onChanged(d.copyWith(quadroAterrado: v)),
+            ),
+            FilterChip(
+              label: const Text('Exibir Terra'),
+              selected: d.exibirTerra,
+              onSelected: (v) => onChanged(d.copyWith(exibirTerra: v)),
+            ),
+            FilterChip(
+              label: const Text('Exibir Neutro'),
+              selected: d.exibirNeutro,
+              onSelected: (v) => onChanged(d.copyWith(exibirNeutro: v)),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
+          // Potência
+          _secLabel('Potencia'),
+          _row([
+            _dropdownField<UnidadePotencia>(
+              'Circuitos',
+              d.unidadeCircuito,
+              UnidadePotencia.values
+                  .where((u) => u == UnidadePotencia.va || u == UnidadePotencia.w)
+                  .toList(),
+              (v) => v!.label,
+              (v) => onChanged(d.copyWith(unidadeCircuito: v!)),
+            ),
+            _dropdownField<UnidadePotencia>(
+              'Quadro',
+              d.unidadeQuadro,
+              UnidadePotencia.values
+                  .where((u) => u == UnidadePotencia.kva || u == UnidadePotencia.kw)
+                  .toList(),
+              (v) => v!.label,
+              (v) => onChanged(d.copyWith(unidadeQuadro: v!)),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          _field(fdCtrl, 'Fator de Demanda (%)', Icons.percent, onSync,
+              tipo: const TextInputType.numberWithOptions(decimal: true)),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
   Widget _faseGeralRow(BuildContext context) {
     return DropdownButtonFormField<FaseUnifilar>(
       initialValue: d.faseGeral,
-      decoration: const InputDecoration(labelText: 'Fases do Alimentador Geral',
-          prefixIcon: Icon(Icons.electrical_services)),
-      items: FaseUnifilar.values.map((f) => DropdownMenuItem(
-        value: f, child: Text(f.label),
-      )).toList(),
+      decoration: const InputDecoration(
+        labelText: 'Fases do Alimentador Geral',
+        prefixIcon: Icon(Icons.electrical_services),
+      ),
+      items: FaseUnifilar.values
+          .map((f) => DropdownMenuItem(value: f, child: Text(f.label)))
+          .toList(),
       onChanged: (v) => onChanged(d.copyWith(faseGeral: v!)),
     );
   }
 
-  Widget _checkCard(BuildContext context, String titulo, bool value,
-      {required ValueChanged<bool> onToggle, required Widget child}) {
+  Widget _checkCard(
+    BuildContext context,
+    String titulo,
+    bool value, {
+    required ValueChanged<bool> onToggle,
+    required Widget child,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: value ? AppColors.primary.withValues(alpha: 0.05) : Colors.grey[50],
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: value ? AppColors.primary.withValues(alpha: 0.3) : Colors.grey[300]!),
+          color: value
+              ? AppColors.primary.withValues(alpha: 0.3)
+              : Colors.grey[300]!,
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(titulo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-          const Spacer(),
-          Switch(value: value, onChanged: onToggle, activeThumbColor: AppColors.primary),
-        ]),
-        if (value) ...[const SizedBox(height: 8), child],
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Text(titulo,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Switch(
+              value: value,
+              onChanged: onToggle,
+              activeThumbColor: AppColors.primary,
+            ),
+          ]),
+          if (value) ...[const SizedBox(height: 8), child],
+        ],
+      ),
     );
   }
 
@@ -651,22 +841,32 @@ class _TabInfomacoes extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       border: Border.all(color: color.withValues(alpha: 0.25)),
     ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(titulo, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
-      const SizedBox(height: 8),
-      ...children,
-    ]),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(titulo,
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+        const SizedBox(height: 8),
+        ...children,
+      ],
+    ),
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tab Circuitos
+// Tab Circuitos — com botão para recarregar das cargas do projeto
 // ─────────────────────────────────────────────────────────────────────────────
 class _TabCircuitos extends StatelessWidget {
   final DiagramaUnifilar d;
+  final Projeto projeto;
   final ValueChanged<DiagramaUnifilar> onChanged;
 
-  const _TabCircuitos({required this.d, required this.onChanged});
+  const _TabCircuitos({
+    required this.d,
+    required this.projeto,
+    required this.onChanged,
+  });
 
   void _adicionarCircuito(BuildContext context) {
     final novo = CircuitoUnifilar(
@@ -692,7 +892,8 @@ class _TabCircuitos extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.95),
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.95),
       builder: (_) => _CircuitoFormSheet(
         circuito: d.circuitos[idx],
         numero: idx + 1,
@@ -711,7 +912,7 @@ class _TabCircuitos extends StatelessWidget {
     final total = d.potenciaTotalkVA;
 
     return Column(children: [
-      // Header com total e botão adicionar
+      // Header
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         color: Colors.white,
@@ -721,16 +922,19 @@ class _TabCircuitos extends StatelessWidget {
               Text('${d.circuitos.length} circuito(s)',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
               Text('Total: ${total.toStringAsFixed(2)} kVA',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
             ]),
           ),
+          // Botão de adicionar manualmente
           ElevatedButton.icon(
             onPressed: () => _adicionarCircuito(context),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Adicionar'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ]),
@@ -742,12 +946,15 @@ class _TabCircuitos extends StatelessWidget {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.cable, size: 48, color: AppColors.textSecondary),
                   const SizedBox(height: 12),
-                  const Text('Nenhum circuito adicionado',
+                  const Text('Nenhuma carga no projeto',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
-                  const Text('Toque em "Adicionar" para incluir circuitos',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const Text(
+                    'Adicione cargas na aba "Cargas" e\nvolte para ver o diagrama atualizado',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
                 ]),
               )
             : ReorderableListView.builder(
@@ -757,7 +964,6 @@ class _TabCircuitos extends StatelessWidget {
                   final novos = [...d.circuitos];
                   final item = novos.removeAt(old);
                   novos.insert(neu > old ? neu - 1 : neu, item);
-                  // Atualiza códigos automáticos
                   final recodificados = novos.asMap().entries.map((e) {
                     final c = e.value;
                     if (c.codigo.startsWith('CIRC.')) {
@@ -813,25 +1019,36 @@ class _CircuitoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4)],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+          ),
+        ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: Container(
-          width: 38, height: 38,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             color: faseColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           alignment: Alignment.center,
-          child: Text(c.fase.label,
-              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: faseColor)),
+          child: Text(
+            c.fase.label,
+            style: TextStyle(
+                fontSize: 9, fontWeight: FontWeight.w800, color: faseColor),
+          ),
         ),
-        title: Text('${c.codigo} — ${c.descricao.isEmpty ? "(sem descrição)" : c.descricao}',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            overflow: TextOverflow.ellipsis),
+        title: Text(
+          '${c.codigo} — ${c.descricao.isEmpty ? "(sem descricao)" : c.descricao}',
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: Text(
-          '${c.corrente.toStringAsFixed(0)}A (${c.curva.label})  •  #${c.bitola}mm²'
+          '${c.corrente.toStringAsFixed(0)}A (${c.curva.label})  •  #${c.bitola}mm2'
           '  •  $potStr  •  ${c.tensao.toStringAsFixed(0)}V'
           '${c.utilizaDR ? "  •  DR" : ""}',
           style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
@@ -856,12 +1073,12 @@ class _CircuitoCard extends StatelessWidget {
 
   Color _faseColor(FaseUnifilar f) {
     switch (f) {
-      case FaseUnifilar.r: return const Color(0xFFEF5350);
-      case FaseUnifilar.s: return const Color(0xFF42A5F5);
-      case FaseUnifilar.t: return const Color(0xFF66BB6A);
-      case FaseUnifilar.rs: return const Color(0xFFFF7043);
-      case FaseUnifilar.rt: return const Color(0xFFAB47BC);
-      case FaseUnifilar.st: return const Color(0xFF26C6DA);
+      case FaseUnifilar.r:   return const Color(0xFFEF5350);
+      case FaseUnifilar.s:   return const Color(0xFF42A5F5);
+      case FaseUnifilar.t:   return const Color(0xFF66BB6A);
+      case FaseUnifilar.rs:  return const Color(0xFFFF7043);
+      case FaseUnifilar.rt:  return const Color(0xFFAB47BC);
+      case FaseUnifilar.st:  return const Color(0xFF26C6DA);
       case FaseUnifilar.rst: return const Color(0xFF1A1A2E);
     }
   }
@@ -917,7 +1134,14 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
 
   @override
   void dispose() {
-    for (final c in [_codigoCtrl, _descCtrl, _corrCtrl, _bitolaCtrl, _potenciaCtrl, _tensaoCtrl]) {
+    for (final c in [
+      _codigoCtrl,
+      _descCtrl,
+      _corrCtrl,
+      _bitolaCtrl,
+      _potenciaCtrl,
+      _tensaoCtrl,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -932,7 +1156,9 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
 
   void _salvar() {
     final c = widget.circuito.copyWith(
-      codigo: _codigoCtrl.text.isEmpty ? 'CIRC. ${widget.numero}' : _codigoCtrl.text,
+      codigo: _codigoCtrl.text.isEmpty
+          ? 'CIRC. ${widget.numero}'
+          : _codigoCtrl.text,
       descricao: _descCtrl.text,
       fase: _fase,
       corrente: double.tryParse(_corrCtrl.text) ?? 10,
@@ -941,7 +1167,8 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
       bitola: double.tryParse(_bitolaCtrl.text) ?? 2.5,
       potencia: double.tryParse(_potenciaCtrl.text) ?? 0,
       unidadePotencia: _unidade,
-      tensao: double.tryParse(_tensaoCtrl.text) ?? (_fase.isTrifasico ? 380 : 220),
+      tensao: double.tryParse(_tensaoCtrl.text) ??
+          (_fase.isTrifasico ? 380 : 220),
     );
     widget.onSave(c);
     Navigator.pop(context);
@@ -957,21 +1184,31 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 12),
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(children: [
               Text('Circuito ${widget.numero}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700)),
               const Spacer(),
               ElevatedButton.icon(
                 onPressed: _salvar,
                 icon: const Icon(Icons.save_outlined, size: 18),
                 label: const Text('Salvar'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ]),
@@ -979,7 +1216,10 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
           const Divider(height: 1),
           Flexible(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(20, 12, 20,
+              padding: EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
                   MediaQuery.of(context).viewInsets.bottom + 20),
               child: Column(children: [
                 // Código + Descrição
@@ -988,14 +1228,20 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                     width: 110,
                     child: TextFormField(
                       controller: _codigoCtrl,
-                      decoration: const InputDecoration(labelText: 'Código', prefixIcon: Icon(Icons.tag)),
+                      decoration: const InputDecoration(
+                        labelText: 'Codigo',
+                        prefixIcon: Icon(Icons.tag),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
                       controller: _descCtrl,
-                      decoration: const InputDecoration(labelText: 'Descrição', prefixIcon: Icon(Icons.edit_note)),
+                      decoration: const InputDecoration(
+                        labelText: 'Descricao',
+                        prefixIcon: Icon(Icons.edit_note),
+                      ),
                     ),
                   ),
                 ]),
@@ -1004,11 +1250,21 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                 // Fase
                 DropdownButtonFormField<FaseUnifilar>(
                   initialValue: _fase,
-                  decoration: const InputDecoration(labelText: 'Fase(s)', prefixIcon: Icon(Icons.electrical_services)),
-                  items: FaseUnifilar.values.map((f) => DropdownMenuItem(
-                    value: f, child: Text('${f.label}  (${f.polos} polo${f.polos > 1 ? "s" : ""})'),
-                  )).toList(),
-                  onChanged: (v) { setState(() => _fase = v!); _sugerirTensao(); },
+                  decoration: const InputDecoration(
+                    labelText: 'Fase(s)',
+                    prefixIcon: Icon(Icons.electrical_services),
+                  ),
+                  items: FaseUnifilar.values
+                      .map((f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(
+                                '${f.label}  (${f.polos} polo${f.polos > 1 ? "s" : ""})'),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _fase = v!);
+                    _sugerirTensao();
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -1017,18 +1273,29 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                   Expanded(
                     child: TextFormField(
                       controller: _corrCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Corrente (A)', prefixIcon: Icon(Icons.bolt), suffixText: 'A'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Corrente (A)',
+                        prefixIcon: Icon(Icons.bolt),
+                        suffixText: 'A',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<CurvaDisjuntor>(
                       initialValue: _curva,
-                      decoration: const InputDecoration(labelText: 'Curva', prefixIcon: Icon(Icons.show_chart)),
-                      items: CurvaDisjuntor.values.map((c) => DropdownMenuItem(
-                        value: c, child: Text('Curva ${c.label}'),
-                      )).toList(),
+                      decoration: const InputDecoration(
+                        labelText: 'Curva',
+                        prefixIcon: Icon(Icons.show_chart),
+                      ),
+                      items: CurvaDisjuntor.values
+                          .map((c) => DropdownMenuItem(
+                                value: c,
+                                child: Text('Curva ${c.label}'),
+                              ))
+                          .toList(),
                       onChanged: (v) => setState(() => _curva = v!),
                     ),
                   ),
@@ -1040,16 +1307,26 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                   Expanded(
                     child: TextFormField(
                       controller: _bitolaCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Bitola', prefixIcon: Icon(Icons.cable), suffixText: 'mm²'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Bitola',
+                        prefixIcon: Icon(Icons.cable),
+                        suffixText: 'mm2',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextFormField(
                       controller: _tensaoCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Tensão', prefixIcon: Icon(Icons.flash_on), suffixText: 'V'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Tensao',
+                        prefixIcon: Icon(Icons.flash_on),
+                        suffixText: 'V',
+                      ),
                     ),
                   ),
                 ]),
@@ -1060,8 +1337,12 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                   Expanded(
                     child: TextFormField(
                       controller: _potenciaCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Potência', prefixIcon: Icon(Icons.power)),
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Potencia',
+                        prefixIcon: Icon(Icons.power),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1069,9 +1350,12 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                     child: DropdownButtonFormField<UnidadePotencia>(
                       initialValue: _unidade,
                       decoration: const InputDecoration(labelText: 'Unidade'),
-                      items: UnidadePotencia.values.map((u) => DropdownMenuItem(
-                        value: u, child: Text(u.label),
-                      )).toList(),
+                      items: UnidadePotencia.values
+                          .map((u) => DropdownMenuItem(
+                                value: u,
+                                child: Text(u.label),
+                              ))
+                          .toList(),
                       onChanged: (v) => setState(() => _unidade = v!),
                     ),
                   ),
@@ -1082,18 +1366,25 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _utilizaDR ? AppColors.success.withValues(alpha: 0.06) : Colors.grey[50],
+                    color: _utilizaDR
+                        ? AppColors.success.withValues(alpha: 0.06)
+                        : Colors.grey[50],
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: _utilizaDR ? AppColors.success.withValues(alpha: 0.3) : Colors.grey[300]!),
+                      color: _utilizaDR
+                          ? AppColors.success.withValues(alpha: 0.3)
+                          : Colors.grey[300]!,
+                    ),
                   ),
                   child: Row(children: [
                     const Text('Utiliza DR neste circuito?',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
                     const Spacer(),
                     Switch(
                       value: _utilizaDR,
-                      onChanged: (v) => setState(() => _utilizaDR = v),
+                      onChanged: (v) =>
+                          setState(() => _utilizaDR = v),
                       activeThumbColor: AppColors.success,
                     ),
                   ]),
@@ -1118,74 +1409,91 @@ class _TabVisual extends StatelessWidget {
   final VoidCallback onSync;
 
   const _TabVisual({
-    required this.d, required this.escalaCtrl,
-    required this.onChanged, required this.onSync,
+    required this.d,
+    required this.escalaCtrl,
+    required this.onChanged,
+    required this.onSync,
   });
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _secLabel('Escala'),
-        _field(escalaCtrl, 'Escala', Icons.zoom_in, onSync,
-            tipo: const TextInputType.numberWithOptions(decimal: true)),
-        const SizedBox(height: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _secLabel('Escala'),
+          _field(escalaCtrl, 'Escala', Icons.zoom_in, onSync,
+              tipo: const TextInputType.numberWithOptions(decimal: true)),
+          const SizedBox(height: 16),
 
-        _secLabel('Orientação da Folha A4'),
-        ...OrientacaoFolha.values.map((o) {
-          final sel = d.orientacao == o;
-          return InkWell(
-            onTap: () => onChanged(d.copyWith(orientacao: o)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(children: [
-                Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: sel ? AppColors.primary : AppColors.textSecondary, size: 20),
-                const SizedBox(width: 8),
-                Text(o.label),
-              ]),
-            ),
-          );
-        }),
-        const SizedBox(height: 16),
-
-        _secLabel('Estilo do Canto'),
-        Row(children: EstiloCanto.values.map((e) {
-          final sel = d.estiloCanto == e;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(d.copyWith(estiloCanto: e)),
-              child: Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: sel ? AppColors.primary : Colors.white,
-                  borderRadius: BorderRadius.circular(sel || e == EstiloCanto.arredondado ? 10 : 2),
-                  border: Border.all(color: sel ? AppColors.primary : AppColors.divider),
-                ),
-                alignment: Alignment.center,
-                child: Text(e.label,
-                    style: TextStyle(
-                      color: sel ? Colors.white : AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    )),
+          _secLabel('Orientacao da Folha A4'),
+          ...OrientacaoFolha.values.map((o) {
+            final sel = d.orientacao == o;
+            return InkWell(
+              onTap: () => onChanged(d.copyWith(orientacao: o)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Icon(
+                    sel
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: sel ? AppColors.primary : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(o.label),
+                ]),
               ),
-            ),
-          );
-        }).toList()),
-        const SizedBox(height: 16),
+            );
+          }),
+          const SizedBox(height: 16),
 
-        _secLabel('Outras opções'),
-        SwitchListTile(
-          value: d.centralizar,
-          onChanged: (v) => onChanged(d.copyWith(centralizar: v)),
-          title: const Text('Centralizar diagrama na folha'),
-          activeThumbColor: AppColors.primary,
-          contentPadding: EdgeInsets.zero,
-        ),
-        const SizedBox(height: 24),
-      ]),
+          _secLabel('Estilo do Canto'),
+          Row(
+            children: EstiloCanto.values.map((e) {
+              final sel = d.estiloCanto == e;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onChanged(d.copyWith(estiloCanto: e)),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.primary : Colors.white,
+                      borderRadius: BorderRadius.circular(
+                          sel || e == EstiloCanto.arredondado ? 10 : 2),
+                      border: Border.all(
+                        color: sel ? AppColors.primary : AppColors.divider,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      e.label,
+                      style: TextStyle(
+                        color: sel ? Colors.white : AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+
+          _secLabel('Outras opcoes'),
+          SwitchListTile(
+            value: d.centralizar,
+            onChanged: (v) => onChanged(d.copyWith(centralizar: v)),
+            title: const Text('Centralizar diagrama na folha'),
+            activeThumbColor: AppColors.primary,
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }
@@ -1195,10 +1503,15 @@ class _TabVisual extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 Widget _secLabel(String t) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: Text(t.toUpperCase(),
-        style: const TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary, letterSpacing: 0.8)));
+    child: Text(
+      t.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textSecondary,
+        letterSpacing: 0.8,
+      ),
+    ));
 
 Widget _row(List<Widget> children) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1207,8 +1520,13 @@ Widget _row(List<Widget> children) => Row(
         .toList()
       ..removeLast());
 
-Widget _field(TextEditingController ctrl, String label, IconData icon,
-    VoidCallback onChanged, {TextInputType tipo = TextInputType.text}) =>
+Widget _field(
+  TextEditingController ctrl,
+  String label,
+  IconData icon,
+  VoidCallback onChanged, {
+  TextInputType tipo = TextInputType.text,
+}) =>
     TextFormField(
       controller: ctrl,
       keyboardType: tipo,
@@ -1217,13 +1535,53 @@ Widget _field(TextEditingController ctrl, String label, IconData icon,
     );
 
 Widget _dropdownField<T>(
-    String label, T value, List<T> items,
-    String Function(T?) display, ValueChanged<T?> onChanged) =>
+  String label,
+  T value,
+  List<T> items,
+  String Function(T?) display,
+  ValueChanged<T?> onChanged,
+) =>
     DropdownButtonFormField<T>(
       initialValue: value,
       decoration: InputDecoration(labelText: label),
-      items: items.map((v) => DropdownMenuItem<T>(
-        value: v, child: Text(display(v)),
-      )).toList(),
+      items: items
+          .map((v) => DropdownMenuItem<T>(value: v, child: Text(display(v))))
+          .toList(),
       onChanged: onChanged,
     );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mantido por compatibilidade: UnifilarScreen (navega como tela separada)
+// Agora redireciona para UnifilarTab
+// ─────────────────────────────────────────────────────────────────────────────
+class UnifilarScreen extends StatelessWidget {
+  final Projeto projeto;
+  const UnifilarScreen({super.key, required this.projeto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.secondary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Diagrama Unifilar',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+            Text('NBR 5410',
+                style: TextStyle(fontSize: 11, color: Colors.white70)),
+          ],
+        ),
+      ),
+      body: UnifilarTab(projeto: projeto),
+    );
+  }
+}

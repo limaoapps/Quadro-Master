@@ -535,7 +535,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   // Controllers
   late TextEditingController _descCtrl;
   late TextEditingController _potCtrl;
-  late TextEditingController _qtdCtrl;
+
   late TextEditingController _fpCtrl;
   late TextEditingController _fdCtrl;
   late TextEditingController _compCtrl;
@@ -598,10 +598,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
             : (c?.potenciaNominal != null && c!.potenciaNominal != 0
                 ? c.potenciaNominal.toString()
                 : ''));
-    _qtdCtrl       = TextEditingController(
-        text: (c?.quantidade != null && c!.quantidade != 1)
-            ? c.quantidade.toString()
-            : '');
+
     _fpCtrl        = TextEditingController(
         text: (c?.fatorPotencia != null ? c!.fatorPotencia.toString() : ''));
     _fdCtrl        = TextEditingController(
@@ -635,7 +632,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   @override
   void dispose() {
     for (final ctrl in [
-      _descCtrl, _potCtrl, _qtdCtrl, _fpCtrl, _fdCtrl, _compCtrl,
+      _descCtrl, _potCtrl, _fpCtrl, _fdCtrl, _compCtrl,
       _notasCtrl, _rendCtrl, _fsCtrl, _especCtrl, _drOutroCtrl,
       _modeloCtrl, _fabricanteCtrl, _correnteCtrl,
     ]) {
@@ -787,43 +784,21 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       ),
       const SizedBox(height: 12),
 
-      // Potência + Qtd
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          flex: 2,
-          child: isAC
-              ? _btuDropdown()
-              : TextFormField(
-                  controller: _potCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: isMotor ? 'Potência (cv)' : 'Potência (W)',
-                    hintText: isMotor ? 'Ex: 5.5' : 'Ex: 1500',
-                    prefixIcon: const Icon(Icons.bolt),
-                    suffixText: isMotor ? 'cv' : 'W',
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
-                ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _qtdCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Qtd',
-              hintText: '1',
-              prefixIcon: Icon(Icons.numbers),
+      // Potência
+      isAC
+          ? _btuDropdown()
+          : TextFormField(
+              controller: _potCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: isMotor ? 'Potência (cv)' : 'Potência (W)',
+                hintText: isMotor ? 'Ex: 5.5' : 'Ex: 1500',
+                prefixIcon: const Icon(Icons.bolt),
+                suffixText: isMotor ? 'cv' : 'W',
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
             ),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return null;
-              if ((int.tryParse(v) ?? 0) < 1) return '≥ 1';
-              return null;
-            },
-          ),
-        ),
-      ]),
       const SizedBox(height: 12),
 
       // Ligação
@@ -1284,35 +1259,18 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       const SizedBox(height: 12),
 
       // Potência (cv)
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          flex: 2,
-          child: TextFormField(
-            controller: _potCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Potência (cv)',
-              hintText: 'Ex: 5.5',
-              prefixIcon: Icon(Icons.bolt),
-              suffixText: 'cv',
-            ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
-          ),
+      TextFormField(
+        controller: _potCtrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Potência (cv)',
+          hintText: 'Ex: 5.5',
+          prefixIcon: Icon(Icons.bolt),
+          suffixText: 'cv',
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _qtdCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Qtd',
-              hintText: '1',
-              prefixIcon: Icon(Icons.numbers),
-            ),
-          ),
-        ),
-      ]),
+        validator: (v) =>
+            (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+      ),
       const SizedBox(height: 12),
 
       // Corrente nominal
@@ -1603,18 +1561,6 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       ),
       const SizedBox(height: 12),
 
-      // Qtd
-      TextFormField(
-        controller: _qtdCtrl,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          labelText: 'Quantidade',
-          hintText: '1',
-          prefixIcon: Icon(Icons.numbers),
-        ),
-      ),
-      const SizedBox(height: 12),
-
       // FP
       TextFormField(
         controller: _fpCtrl,
@@ -1806,7 +1752,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       descricao:       _descCtrl.text.trim().isEmpty
           ? 'Sem descrição' : _descCtrl.text.trim(),
       tipo:            tipoFinal,
-      quantidade:      int.tryParse(_qtdCtrl.text) ?? 1,
+      quantidade:      1,
       potenciaNominal: potNominal,
       ligacao:         _ligacao,
       tensao:          _tensao,

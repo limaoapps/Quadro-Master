@@ -442,11 +442,27 @@ class UnifilarSvgBuilder {
   // ─────────────────────────────────────────────────────────────────────────
   // Helpers
   // ─────────────────────────────────────────────────────────────────────────
-  String _escXml(String s) => s
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
+  // Escapa XML E remove acentos/caracteres especiais para compatibilidade com pw.SvgImage
+  String _escXml(String s) {
+    // 1. Escapa entidades XML obrigatórias
+    var r = s
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+
+    // 2. Substitui travessão (—, –) por hífen simples
+    r = r.replaceAll('—', '-').replaceAll('–', '-');
+
+    // 3. Remove diacríticos/acentos (substituição direta)
+    const _from = 'ÀÁÂÃÄÅàáâãäåÈÉÊËèéêëÌÍÎÏìíîïÒÓÔÕÖØòóôõöøÙÚÛÜùúûüÇçÑñÝýÿ';
+    const _to   = 'AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOOooooooUUUUuuuuCcNnYyy';
+    for (int i = 0; i < _from.length; i++) {
+      r = r.replaceAll(_from[i], _to[i]);
+    }
+
+    return r;
+  }
 
   String _fmtBitola(double b) {
     if (b == b.truncateToDouble()) return b.toInt().toString();
