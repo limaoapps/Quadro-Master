@@ -1,8 +1,8 @@
 // lib/screens/unifilar_screen.dart
 // Módulo Diagrama Unifilar NBR 5410
-// Versão Session 9 — aba integrada, preview SVG real, auto-barramento
+// Versão Session 10 — layout fiel ao PDF + export robusto
 
-import 'package:flutter/foundation.dart';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
@@ -198,13 +198,43 @@ class _UnifilarTabState extends State<UnifilarTab> {
       final paisagem = _diagrama.orientacao == OrientacaoFolha.paisagem;
       final pageFormat = paisagem ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
 
+      // Renderiza o SVG para PNG em memória (2x de resolução para nitidez)
+      // Isso evita qualquer problema de charset com pw.SvgImage
+      final double scale = 2.0;
+      final double svgW = paisagem ? 841.0 : 595.0;
+      final double svgH = paisagem ? 595.0 : 842.0;
+
+      final pictureInfo = await vg.loadPicture(
+        SvgStringLoader(svg),
+        null,
+      );
+
+      final ui.PictureRecorder recorder = ui.PictureRecorder();
+      final ui.Canvas canvas = ui.Canvas(
+        recorder,
+        ui.Rect.fromLTWH(0, 0, svgW * scale, svgH * scale),
+      );
+      canvas.scale(scale, scale);
+      canvas.drawPicture(pictureInfo.picture);
+      final ui.Picture picture = recorder.endRecording();
+      final ui.Image image = await picture.toImage(
+        (svgW * scale).toInt(),
+        (svgH * scale).toInt(),
+      );
+      final pngBytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      pictureInfo.picture.dispose();
+      image.dispose();
+
+      if (pngBytes == null) throw Exception('Falha ao rasterizar SVG');
+
       final doc = pw.Document();
+      final pdfImage = pw.MemoryImage(pngBytes.buffer.asUint8List());
 
       doc.addPage(
         pw.Page(
           pageFormat: pageFormat,
           margin: pw.EdgeInsets.zero,
-          build: (ctx) => pw.SvgImage(svg: svg),
+          build: (ctx) => pw.Image(pdfImage, fit: pw.BoxFit.fill),
         ),
       );
 
