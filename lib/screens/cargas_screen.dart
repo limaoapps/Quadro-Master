@@ -259,6 +259,10 @@ class _CargaCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           _pill(carga.drTexto, AppColors.success),
                         ],
+                        if (carga.motorReserva) ...[
+                          const SizedBox(width: 4),
+                          _pill('Reserva', const Color(0xFFE65100)),
+                        ],
                       ]),
                     ]),
                   ),
@@ -525,6 +529,9 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   late bool _utilizaDR;
   late String _sensibilidadeDR;
 
+  // Motor reserva
+  late bool _motorReserva;
+
   // QGBT
   late SubtipoQGBT _subtipoQGBT;
   // QF
@@ -537,7 +544,6 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   late TextEditingController _potCtrl;
 
   late TextEditingController _fpCtrl;
-  late TextEditingController _fdCtrl;
   late TextEditingController _compCtrl;
   late TextEditingController _notasCtrl;
   late TextEditingController _rendCtrl;
@@ -583,6 +589,9 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
     _utilizaDR       = c?.utilizaDR ?? false;
     _sensibilidadeDR = c?.sensibilidadeDR ?? '30mA';
 
+    // Motor reserva
+    _motorReserva = c?.motorReserva ?? false;
+
     // QGBT
     _subtipoQGBT = c?.subtipoQGBT ?? SubtipoQGBT.qd;
     // QF
@@ -601,8 +610,6 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
 
     _fpCtrl        = TextEditingController(
         text: (c?.fatorPotencia != null ? c!.fatorPotencia.toString() : ''));
-    _fdCtrl        = TextEditingController(
-        text: (c?.fatorDemanda != null ? c!.fatorDemanda.toString() : ''));
     _compCtrl      = TextEditingController(
         text: (c?.comprimentoRamal != null && c!.comprimentoRamal != 20
             ? c.comprimentoRamal.toString()
@@ -632,7 +639,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
   @override
   void dispose() {
     for (final ctrl in [
-      _descCtrl, _potCtrl, _fpCtrl, _fdCtrl, _compCtrl,
+      _descCtrl, _potCtrl, _fpCtrl, _compCtrl,
       _notasCtrl, _rendCtrl, _fsCtrl, _especCtrl, _drOutroCtrl,
       _modeloCtrl, _fabricanteCtrl, _correnteCtrl,
     ]) {
@@ -846,47 +853,23 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       _NbrInfoBanner(ligacao: _ligacao, tensao: _tensao),
       const SizedBox(height: 12),
 
-      // FP + FD
-      Row(children: [
-        Expanded(
-          child: TextFormField(
-            controller: _fpCtrl,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Fator de Potência',
-              hintText: 'Ex: 0.92',
-              prefixIcon: Icon(Icons.tune),
-            ),
-            validator: (v) {
-              final d = double.tryParse(v ?? '');
-              if (d == null) return 'Inválido';
-              if (d < 0.01 || d > 1.0) return '0,01–1,00';
-              return null;
-            },
-          ),
+      // Fator de Potência (campo único — FD foi removido, agora é por grupo no Quadro)
+      TextFormField(
+        controller: _fpCtrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Fator de Potência',
+          hintText: 'Ex: 0.92',
+          prefixIcon: Icon(Icons.tune),
+          helperText: 'Fator de Demanda é configurado por grupo no nível do Quadro',
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _fdCtrl,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Fator Demanda',
-              hintText: 'Ex: 100',
-              prefixIcon: Icon(Icons.percent),
-              suffixText: '%',
-            ),
-            validator: (v) {
-              final d = double.tryParse(v ?? '');
-              if (d == null) return 'Inválido';
-              if (d <= 0 || d > 100) return '1–100%';
-              return null;
-            },
-          ),
-        ),
-      ]),
+        validator: (v) {
+          final d = double.tryParse(v ?? '');
+          if (d == null) return 'Inválido';
+          if (d < 0.01 || d > 1.0) return '0,01–1,00';
+          return null;
+        },
+      ),
       const SizedBox(height: 12),
 
       // Motor params
@@ -938,6 +921,57 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
                   value: p, child: Text(p.label),
                 )).toList(),
                 onChanged: (v) => setState(() => _partida = v!),
+              ),
+              const SizedBox(height: 10),
+              // Status do Motor: Em Operação / Reserva (Stand-by)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _motorReserva
+                      ? const Color(0xFFFFF3E0)
+                      : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _motorReserva
+                        ? const Color(0xFFFF8F00).withValues(alpha: 0.5)
+                        : const Color(0xFF388E3C).withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(children: [
+                  Icon(
+                    _motorReserva ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                    size: 20,
+                    color: _motorReserva ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _motorReserva ? 'Motor Reserva (Stand-by)' : 'Motor em Operação',
+                          style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700,
+                            color: _motorReserva ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                          ),
+                        ),
+                        Text(
+                          _motorReserva
+                              ? 'Excluído do cálculo de demanda simultânea'
+                              : 'Incluído no cálculo de demanda',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFF757575)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _motorReserva,
+                    onChanged: (v) => setState(() => _motorReserva = v),
+                    activeColor: const Color(0xFFE65100),
+                    inactiveThumbColor: const Color(0xFF388E3C),
+                    inactiveTrackColor: const Color(0xFF388E3C).withValues(alpha: 0.3),
+                  ),
+                ]),
               ),
             ])),
         const SizedBox(height: 12),
@@ -1167,7 +1201,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       Row(children: [
         Expanded(
           child: TextFormField(
-            controller: _fdCtrl,
+            controller: _correnteCtrl,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: 'Disjuntor (A)',
@@ -1393,19 +1427,6 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
           hintText: 'Ex: 25',
           prefixIcon: Icon(Icons.straighten),
           suffixText: 'm',
-        ),
-      ),
-      const SizedBox(height: 12),
-
-      // FD
-      TextFormField(
-        controller: _fdCtrl,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Fator de Demanda (%)',
-          hintText: 'Ex: 100',
-          prefixIcon: Icon(Icons.percent),
-          suffixText: '%',
         ),
       ),
       const SizedBox(height: 12),
@@ -1757,7 +1778,7 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       ligacao:         _ligacao,
       tensao:          _tensao,
       fatorPotencia:   double.tryParse(_fpCtrl.text) ?? 0.92,
-      fatorDemanda:    double.tryParse(_fdCtrl.text) ?? 100,
+
       fase:            _fase,
       notas:           notasFinais,
       rendimento:      double.tryParse(_rendCtrl.text) ?? 0.90,
@@ -1777,6 +1798,8 @@ class _CargaFormSheetState extends State<_CargaFormSheet> {
       subtipoPainel: spainel,
       modelo:      _modeloCtrl.text,
       fabricante:  _fabricanteCtrl.text,
+      // Motor reserva — apenas para tipo motor
+      motorReserva: _tipo == TipoCarga.motor ? _motorReserva : false,
       // Preserva status ativo da carga original ao editar
       ativo:       widget.cargaExistente?.ativo ?? true,
     );

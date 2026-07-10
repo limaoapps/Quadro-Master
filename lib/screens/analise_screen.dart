@@ -570,8 +570,14 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
           ...r.distribuicaoCategorias.map((cat) {
             final frac = total > 0 ? cat.potenciaDemandada / total : 0.0;
             final cor = _randomCatColor(cat.nome);
+            final fdAplicado = cat.fatorDemandaAplicado; // já em % (0-100)
+            final fdColor = fdAplicado >= 100
+                ? AppColors.textSecondary
+                : fdAplicado >= 75
+                    ? AppColors.warning
+                    : AppColors.primary;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -579,13 +585,27 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
                     children: [
                       Text('${cat.icone} ', style: const TextStyle(fontSize: 16)),
                       Expanded(child: Text(cat.nome, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                      // Badge do FD aplicado
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: fdColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: fdColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          'FD ${fdAplicado.toStringAsFixed(0)}%',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fdColor),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Text('${cat.percentualTotal.toStringAsFixed(1)}%',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: cor)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   _barra(frac, cor, height: 10),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -602,6 +622,353 @@ class _AnaliseScreenState extends State<AnaliseScreen> {
         ],
       ),
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Módulo FD — Painel de Fatores de Demanda por Grupo (editável)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _painelFatoresDemanda(AppProvider prov, ResultadoProjeto r) {
+    final fd = prov.projetoAtual?.fatoresDemanda ?? FatoresDemandaGrupo();
+
+    // Identificar quais grupos têm cargas instaladas
+    final Map<TipoCarga, double> instaladaPorGrupo = {};
+    for (final cat in r.distribuicaoCategorias) {
+      // Mapear nome da categoria de volta para TipoCarga
+      for (final tipo in TipoCarga.values) {
+        if (_nomeTipoCarga(tipo) == cat.nome) {
+          instaladaPorGrupo[tipo] = cat.potenciaInstalada;
+        }
+      }
+    }
+
+    // Verificar alerta de motores reserva
+    final numReserva = prov.projetoAtual?.cargas
+        .where((c) => c.tipo == TipoCarga.motor && c.motorReserva)
+        .length ?? 0;
+
+    if (instaladaPorGrupo.isEmpty) {
+      return _semDados('Nenhuma carga cadastrada para configurar FD');
+    }
+
+    // Calcular sugestão automática usando FdAutoEngine
+    final sugestao = FdAutoEngine.calcularSugestoes(
+      prov.projetoAtual?.cargas ?? [],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cabeçalho com botão "Aplicar Sugestão"
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'FD calculado automaticamente por grupo (NBR 5410). '
+                          'Aceite o valor sugerido ou ajuste manualmente.',
+                          style: TextStyle(fontSize: 10, color: AppColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Botão "Aplicar Todos"
+              GestureDetector(
+                onTap: () => prov.atualizarFatoresDemanda(sugestao),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_fix_high, size: 14, color: Colors.white),
+                      SizedBox(height: 2),
+                      Text('Auto NBR', style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Alerta motores reserva
+          if (numReserva > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE65100).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE65100).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.pause_circle_outline, size: 14, color: Color(0xFFE65100)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$numReserva motor(es) em reserva (stand-by) excluído(s) do cálculo de demanda',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFFE65100), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Linha de grupos
+          ...instaladaPorGrupo.entries.map((entry) {
+            final tipo = entry.key;
+            final potInstalada = entry.value;
+            final fdAtual = fd.fatorParaTipo(tipo);
+            final fdSugerido = sugestao.fatorParaTipo(tipo);
+            final potDemandada = potInstalada * fdAtual / 100.0;
+
+            // Contar para critério
+            final qtdGrupo = (prov.projetoAtual?.cargas ?? [])
+                .where((c) => c.tipo == tipo && !(c.tipo == TipoCarga.motor && c.motorReserva))
+                .fold(0, (s, c) => s + c.quantidade);
+
+            return _grupoFDRow(
+              prov: prov,
+              fd: fd,
+              tipo: tipo,
+              potInstalada: potInstalada,
+              potDemandada: potDemandada,
+              fdAtual: fdAtual,
+              fdSugerido: fdSugerido,
+              qtdGrupo: qtdGrupo,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Row de edição de FD para um grupo individual
+  Widget _grupoFDRow({
+    required AppProvider prov,
+    required FatoresDemandaGrupo fd,
+    required TipoCarga tipo,
+    required double potInstalada,
+    required double potDemandada,
+    required double fdAtual,
+    required double fdSugerido,
+    required int qtdGrupo,
+  }) {
+    final icone = _iconeCategoria(tipo);
+    final nome  = _nomeTipoCarga(tipo);
+
+    return StatefulBuilder(
+      builder: (ctx, setLocal) {
+        final fdNow = fd.fatorParaTipo(tipo);
+        final potD  = potInstalada * fdNow / 100.0;
+        final isSugestaoAtiva = fdNow.round() == fdSugerido.round();
+        final cor = fdNow >= 100
+            ? AppColors.textSecondary
+            : fdNow >= 75
+                ? AppColors.warning
+                : AppColors.primary;
+
+        // Critério descritivo
+        final criterio = FdAutoEngine.descricaoCriterio(tipo, qtdGrupo, potInstalada);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F9FA),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSugestaoAtiva
+                  ? AppColors.success.withValues(alpha: 0.4)
+                  : AppColors.divider,
+              width: isSugestaoAtiva ? 1.5 : 1.0,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Título do grupo + FD atual + botão "Usar NBR"
+              Row(
+                children: [
+                  Text('$icone ', style: const TextStyle(fontSize: 18)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(nome,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                        Text(criterio,
+                          style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                  // Badge FD sugerido (se diferente do atual)
+                  if (!isSugestaoAtiva) ...[
+                    GestureDetector(
+                      onTap: () {
+                        final novoFd = _atualizarFD(fd, tipo, fdSugerido);
+                        prov.atualizarFatoresDemanda(novoFd);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          'NBR ${fdSugerido.toStringAsFixed(0)}% ↑',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  // Badge FD atual
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSugestaoAtiva
+                          ? AppColors.success.withValues(alpha: 0.12)
+                          : cor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${fdNow.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: isSugestaoAtiva ? AppColors.success : cor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Linha instalada → demandada
+              Text(
+                'Instalada: ${(potInstalada/1000).toStringAsFixed(2)} kW  →  Demandada: ${(potD/1000).toStringAsFixed(2)} kW',
+                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+
+              // Slider
+              Row(
+                children: [
+                  const Text('0', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  Expanded(
+                    child: Slider(
+                      value: fdNow.clamp(0.0, 100.0),
+                      min: 0,
+                      max: 100,
+                      divisions: 20,
+                      activeColor: isSugestaoAtiva ? AppColors.success : (cor == AppColors.textSecondary ? AppColors.primary : cor),
+                      label: '${fdNow.toStringAsFixed(0)}%',
+                      onChanged: (v) {
+                        final novoFd = _atualizarFD(fd, tipo, v);
+                        prov.atualizarFatoresDemanda(novoFd);
+                      },
+                    ),
+                  ),
+                  const Text('100%', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                ],
+              ),
+
+              // Botões rápidos de FD (incluindo o sugerido em destaque)
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [25, 50, 60, 70, 75, 80, 100].map((v) {
+                  final isSelected = fdNow.round() == v;
+                  final isSug = fdSugerido.round() == v;
+                  return GestureDetector(
+                    onTap: () {
+                      final novoFd = _atualizarFD(fd, tipo, v.toDouble());
+                      prov.atualizarFatoresDemanda(novoFd);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? (isSug ? AppColors.success : AppColors.primary)
+                            : (isSug ? AppColors.success.withValues(alpha: 0.10) : AppColors.primary.withValues(alpha: 0.07)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? (isSug ? AppColors.success : AppColors.primary)
+                              : (isSug ? AppColors.success.withValues(alpha: 0.5) : AppColors.primary.withValues(alpha: 0.2)),
+                          width: isSug ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Text(
+                        isSug ? '$v%✓' : '$v%',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? Colors.white : (isSug ? AppColors.success : AppColors.primary),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Cria um FatoresDemandaGrupo com o valor atualizado para o tipo informado
+  FatoresDemandaGrupo _atualizarFD(FatoresDemandaGrupo fd, TipoCarga tipo, double valor) {
+    switch (tipo) {
+      case TipoCarga.iluminacao:     return fd.copyWith(iluminacao: valor);
+      case TipoCarga.tug:            return fd.copyWith(tug: valor);
+      case TipoCarga.tue:            return fd.copyWith(tue: valor);
+      case TipoCarga.motor:          return fd.copyWith(motor: valor);
+      case TipoCarga.arCondicionado: return fd.copyWith(arCondicionado: valor);
+      case TipoCarga.resistencia:    return fd.copyWith(resistencia: valor);
+      case TipoCarga.generico:       return fd.copyWith(generico: valor);
+    }
+  }
+
+  /// Nome legível do TipoCarga para matching com DistribuicaoCategoria
+  String _nomeTipoCarga(TipoCarga tipo) {
+    switch (tipo) {
+      case TipoCarga.iluminacao:     return 'Iluminação';
+      case TipoCarga.tug:            return 'TUG';
+      case TipoCarga.tue:            return 'TUE';
+      case TipoCarga.motor:          return 'Motor';
+      case TipoCarga.arCondicionado: return 'Ar-Cond.';
+      case TipoCarga.resistencia:    return 'Resistência';
+      case TipoCarga.generico:       return 'Genérico';
+    }
   }
 
   Color _randomCatColor(String nome) {

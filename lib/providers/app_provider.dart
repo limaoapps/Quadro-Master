@@ -40,6 +40,7 @@ class AppProvider extends ChangeNotifier {
       numFases: _projetoAtual!.numFases.index,
       tensaoLinha: _projetoAtual!.tensao.valor,
       tensaoFase: _projetoAtual!.tensao.tensaoFase,
+      fatoresDemanda: _projetoAtual!.fatoresDemanda,
       reservaPercent: _reservaPercent,
     );
   }
@@ -101,6 +102,24 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Atualiza os fatores de demanda por grupo do projeto atual e persiste
+  Future<void> atualizarFatoresDemanda(FatoresDemandaGrupo fd) async {
+    if (_projetoAtual == null) return;
+    _projetoAtual = _projetoAtual!.copyWith(fatoresDemanda: fd);
+    final idx = _projetos.indexWhere((x) => x.id == _projetoAtual!.id);
+    if (idx >= 0) _projetos[idx] = _projetoAtual!;
+    await StorageService.salvarProjeto(_projetoAtual!);
+    notifyListeners();
+  }
+
+  /// Aplica FD automático (NBR 5410) para todos os grupos do projeto atual
+  /// Chamado automaticamente quando cargas são adicionadas/editadas
+  Future<void> aplicarFdAutomatico() async {
+    if (_projetoAtual == null || _projetoAtual!.cargas.isEmpty) return;
+    final sugestao = FdAutoEngine.calcularSugestoes(_projetoAtual!.cargas);
+    await atualizarFatoresDemanda(sugestao);
+  }
+
   Future<Projeto> duplicarProjeto(Projeto original) async {
     final novo = Projeto(
       id: _uuid.v4(),
@@ -145,6 +164,8 @@ class AppProvider extends ChangeNotifier {
     _projetoAtual!.cargas.add(c);
     _projetoAtual!.modificadoEm = DateTime.now();
     await salvarProjetoAtual();
+    // Recalcular FD automático após adicionar carga
+    await aplicarFdAutomatico();
   }
 
   Future<void> atualizarCarga(Carga c) async {
@@ -153,6 +174,8 @@ class AppProvider extends ChangeNotifier {
     if (idx >= 0) _projetoAtual!.cargas[idx] = c;
     _projetoAtual!.modificadoEm = DateTime.now();
     await salvarProjetoAtual();
+    // Recalcular FD automático após editar carga
+    await aplicarFdAutomatico();
   }
 
   Future<void> excluirCarga(String id) async {
@@ -160,6 +183,8 @@ class AppProvider extends ChangeNotifier {
     _projetoAtual!.cargas.removeWhere((c) => c.id == id);
     _projetoAtual!.modificadoEm = DateTime.now();
     await salvarProjetoAtual();
+    // Recalcular FD automático após excluir carga
+    await aplicarFdAutomatico();
   }
 
   Future<void> duplicarCarga(Carga carga) async {
@@ -170,6 +195,7 @@ class AppProvider extends ChangeNotifier {
     _projetoAtual!.cargas.add(nova);
     _projetoAtual!.modificadoEm = DateTime.now();
     await salvarProjetoAtual();
+    await aplicarFdAutomatico();
   }
 
   Future<void> toggleCargaAtiva(String id) async {

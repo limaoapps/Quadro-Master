@@ -2,6 +2,197 @@ import 'dart:convert';
 import 'carga.dart';
 import 'alimentador.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FatoresDemandaGrupo — FD centralizado por categoria no nível do Quadro
+// ─────────────────────────────────────────────────────────────────────────────
+class FatoresDemandaGrupo {
+  double iluminacao;     // % aplicado sobre total do grupo Iluminação
+  double tug;            // % aplicado sobre total do grupo TUG
+  double tue;            // % aplicado sobre total do grupo TUE
+  double motor;          // % aplicado sobre total do grupo Motores (em operação)
+  double arCondicionado; // % aplicado sobre total do grupo Ar-Condicionado
+  double resistencia;    // % aplicado sobre total do grupo Resistências
+  double generico;       // % aplicado sobre total do grupo Genérico
+
+  FatoresDemandaGrupo({
+    this.iluminacao    = 100,
+    this.tug           = 100,
+    this.tue           = 100,
+    this.motor         = 100,
+    this.arCondicionado = 100,
+    this.resistencia   = 100,
+    this.generico      = 100,
+  });
+
+  double fatorParaTipo(TipoCarga tipo) {
+    switch (tipo) {
+      case TipoCarga.iluminacao:     return iluminacao;
+      case TipoCarga.tug:            return tug;
+      case TipoCarga.tue:            return tue;
+      case TipoCarga.motor:          return motor;
+      case TipoCarga.arCondicionado: return arCondicionado;
+      case TipoCarga.resistencia:    return resistencia;
+      case TipoCarga.generico:       return generico;
+    }
+  }
+
+  Map<String, dynamic> toMap() => {
+    'iluminacao': iluminacao,
+    'tug': tug,
+    'tue': tue,
+    'motor': motor,
+    'arCondicionado': arCondicionado,
+    'resistencia': resistencia,
+    'generico': generico,
+  };
+
+  factory FatoresDemandaGrupo.fromMap(Map<String, dynamic> m) =>
+      FatoresDemandaGrupo(
+        iluminacao:     (m['iluminacao']     ?? 100).toDouble(),
+        tug:            (m['tug']            ?? 100).toDouble(),
+        tue:            (m['tue']            ?? 100).toDouble(),
+        motor:          (m['motor']          ?? 100).toDouble(),
+        arCondicionado: (m['arCondicionado'] ?? 100).toDouble(),
+        resistencia:    (m['resistencia']    ?? 100).toDouble(),
+        generico:       (m['generico']       ?? 100).toDouble(),
+      );
+
+  FatoresDemandaGrupo copyWith({
+    double? iluminacao, double? tug, double? tue, double? motor,
+    double? arCondicionado, double? resistencia, double? generico,
+  }) => FatoresDemandaGrupo(
+    iluminacao:     iluminacao     ?? this.iluminacao,
+    tug:            tug            ?? this.tug,
+    tue:            tue            ?? this.tue,
+    motor:          motor          ?? this.motor,
+    arCondicionado: arCondicionado ?? this.arCondicionado,
+    resistencia:    resistencia    ?? this.resistencia,
+    generico:       generico       ?? this.generico,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FdAutoEngine — Sugere FD automático por grupo com base em tabelas de referência
+// Fontes: NBR 5410:2004, Mamede Filho "Instalações Elétricas Industriais", ABNT
+// ─────────────────────────────────────────────────────────────────────────────
+class FdAutoEngine {
+  // Motores — NBR 5410 Tabela 41 / Mamede Filho Cap. 4
+  // Baseia-se no número de motores em operação simultânea
+  static double fdMotores(int numMotoresEmOperacao) {
+    if (numMotoresEmOperacao <= 0) return 100;
+    if (numMotoresEmOperacao == 1) return 100; // 1 motor: FD = 100%
+    if (numMotoresEmOperacao == 2) return 100; // 2 motores: FD = 100%
+    if (numMotoresEmOperacao == 3) return 91;  // 3 motores: FD = 91%
+    if (numMotoresEmOperacao == 4) return 84;  // 4 motores: FD = 84%
+    if (numMotoresEmOperacao == 5) return 78;  // 5 motores: FD = 78%
+    if (numMotoresEmOperacao == 6) return 74;  // 6 motores: FD = 74%
+    if (numMotoresEmOperacao <= 8) return 71;  // 7-8 motores: FD = 71%
+    if (numMotoresEmOperacao <= 10) return 68; // 9-10 motores: FD = 68%
+    return 65;                                 // > 10 motores: FD = 65%
+  }
+
+  // Iluminação — NBR 5410:2004 seção 9.4.1 / Norma ABNT
+  // Baseia-se na potência total instalada do grupo
+  static double fdIluminacao(double potenciaInstaladadaW) {
+    final kw = potenciaInstaladadaW / 1000.0;
+    if (kw <= 0) return 100;
+    if (kw <= 2)    return 100; // Até 2 kW: 100%
+    if (kw <= 5)    return 90;  // 2–5 kW: 90%
+    if (kw <= 10)   return 80;  // 5–10 kW: 80%
+    if (kw <= 25)   return 75;  // 10–25 kW: 75%
+    if (kw <= 50)   return 70;  // 25–50 kW: 70%
+    return 65;                  // > 50 kW: 65%
+  }
+
+  // TUG (Tomadas de Uso Geral) — NBR 5410:2004 seção 9.4.2
+  // Baseia-se no número de circuitos TUG
+  static double fdTUG(int numCircuitos) {
+    if (numCircuitos <= 0) return 100;
+    if (numCircuitos == 1) return 100;
+    if (numCircuitos == 2) return 100;
+    if (numCircuitos <= 4) return 90;  // 3–4 circuitos: 90%
+    if (numCircuitos <= 6) return 80;  // 5–6 circuitos: 80%
+    if (numCircuitos <= 10) return 70; // 7–10 circuitos: 70%
+    return 65;                          // > 10 circuitos: 65%
+  }
+
+  // TUE (Tomadas de Uso Específico) — sempre 100% (uso dedicado)
+  static double fdTUE(int numCircuitos) {
+    if (numCircuitos <= 2) return 100;
+    if (numCircuitos <= 4) return 90;
+    return 80;
+  }
+
+  // Ar-Condicionado — baseado no número de unidades
+  static double fdArCondicionado(int numUnidades) {
+    if (numUnidades <= 0) return 100;
+    if (numUnidades <= 2) return 100; // 1-2 unidades: 100%
+    if (numUnidades <= 4) return 90;  // 3-4 unidades: 90%
+    if (numUnidades <= 6) return 80;  // 5-6 unidades: 80%
+    return 75;                         // > 6 unidades: 75%
+  }
+
+  // Resistência (aquecimento, chuveiro, forno) — uso simultâneo alto
+  static double fdResistencia(int numCircuitos) {
+    if (numCircuitos <= 2) return 100;
+    if (numCircuitos <= 4) return 90;
+    return 80;
+  }
+
+  // Genérico — conservador
+  static double fdGenerico(int numCircuitos) {
+    if (numCircuitos <= 2) return 100;
+    if (numCircuitos <= 5) return 90;
+    return 80;
+  }
+
+  /// Calcula FD sugerido para cada grupo a partir da lista de cargas
+  /// Retorna um FatoresDemandaGrupo com os valores sugeridos pelas tabelas
+  static FatoresDemandaGrupo calcularSugestoes(List<Carga> cargas) {
+    // Contar por grupo
+    final Map<TipoCarga, int> contagens = {};
+    final Map<TipoCarga, double> potencias = {};
+
+    for (final c in cargas) {
+      // Motores em reserva não entram na contagem de operação
+      if (c.tipo == TipoCarga.motor && c.motorReserva) continue;
+      contagens[c.tipo] = (contagens[c.tipo] ?? 0) + c.quantidade;
+      potencias[c.tipo] = (potencias[c.tipo] ?? 0) + c.potenciaAtiva;
+    }
+
+    return FatoresDemandaGrupo(
+      iluminacao:     fdIluminacao(potencias[TipoCarga.iluminacao] ?? 0),
+      tug:            fdTUG(contagens[TipoCarga.tug] ?? 0),
+      tue:            fdTUE(contagens[TipoCarga.tue] ?? 0),
+      motor:          fdMotores(contagens[TipoCarga.motor] ?? 0),
+      arCondicionado: fdArCondicionado(contagens[TipoCarga.arCondicionado] ?? 0),
+      resistencia:    fdResistencia(contagens[TipoCarga.resistencia] ?? 0),
+      generico:       fdGenerico(contagens[TipoCarga.generico] ?? 0),
+    );
+  }
+
+  /// Descrição textual do critério aplicado (para exibição na UI)
+  static String descricaoCriterio(TipoCarga tipo, int quantidade, double potenciaW) {
+    switch (tipo) {
+      case TipoCarga.motor:
+        return 'NBR 5410 Tab.41 — $quantidade motor(es) em operação';
+      case TipoCarga.iluminacao:
+        final kw = (potenciaW / 1000).toStringAsFixed(1);
+        return 'NBR 5410 §9.4.1 — ${kw} kW instalados';
+      case TipoCarga.tug:
+        return 'NBR 5410 §9.4.2 — $quantidade circuito(s) TUG';
+      case TipoCarga.tue:
+        return 'TUE dedicado — $quantidade circuito(s)';
+      case TipoCarga.arCondicionado:
+        return 'Uso simultâneo — $quantidade unidade(s)';
+      case TipoCarga.resistencia:
+        return 'Uso simultâneo — $quantidade circuito(s)';
+      case TipoCarga.generico:
+        return 'Critério conservador — $quantidade circuito(s)';
+    }
+  }
+}
+
 enum TipoQuadro { qd, qf, qgbt, painelEletrico }
 enum NumeroFases { monofasico, bifasico, trifasico }
 enum TensaoAlimentacao { v127, v220, v380, v440 }
@@ -319,6 +510,9 @@ class Projeto {
   // ── QGBT: lista de alimentadores hierárquicos ──────────────────────────
   List<Alimentador> alimentadores;
 
+  // ── FD centralizado por grupo no nível do Quadro ─────────────────
+  FatoresDemandaGrupo fatoresDemanda;
+
   Projeto({
     required this.id,
     required this.nome,
@@ -331,6 +525,7 @@ class Projeto {
     EmpresaContratante? contratante,
     List<Carga>? cargas,
     List<Alimentador>? alimentadores,
+    FatoresDemandaGrupo? fatoresDemanda,
     DateTime? criadoEm,
     DateTime? modificadoEm,
     this.status = StatusProjeto.elaboracao,
@@ -338,6 +533,7 @@ class Projeto {
         contratante = contratante ?? EmpresaContratante(),
         cargas = cargas ?? [],
         alimentadores = alimentadores ?? [],
+        fatoresDemanda = fatoresDemanda ?? FatoresDemandaGrupo(),
         criadoEm = criadoEm ?? DateTime.now(),
         modificadoEm = modificadoEm ?? DateTime.now();
 
@@ -359,6 +555,7 @@ class Projeto {
     'contratante': contratante.toMap(),
     'cargas': cargas.map((c) => c.toMap()).toList(),
     'alimentadores': alimentadores.map((a) => a.toMap()).toList(),
+    'fatoresDemanda': fatoresDemanda.toMap(),
     'criadoEm': criadoEm.toIso8601String(),
     'modificadoEm': modificadoEm.toIso8601String(),
     'status': status.index,
@@ -381,6 +578,9 @@ class Projeto {
       alimentadores: (m['alimentadores'] as List<dynamic>? ?? [])
           .map((a) => Alimentador.fromMap(a as Map<String, dynamic>))
           .toList(),
+      fatoresDemanda: m['fatoresDemanda'] != null
+          ? FatoresDemandaGrupo.fromMap(m['fatoresDemanda'] as Map<String, dynamic>)
+          : FatoresDemandaGrupo(),
       criadoEm: DateTime.parse(m['criadoEm'] ?? DateTime.now().toIso8601String()),
       modificadoEm: DateTime.parse(m['modificadoEm'] ?? DateTime.now().toIso8601String()),
       status: StatusProjeto.values[m['status'] ?? 0],
@@ -393,7 +593,8 @@ class Projeto {
   Projeto copyWith({String? nome, TipoQuadro? tipoQuadro, TensaoAlimentacao? tensao,
     NumeroFases? numFases, double? fatorPotenciaGeral, String? observacoes,
     EmpresaExecutora? executora, EmpresaContratante? contratante,
-    List<Carga>? cargas, List<Alimentador>? alimentadores, StatusProjeto? status}) {
+    List<Carga>? cargas, List<Alimentador>? alimentadores,
+    FatoresDemandaGrupo? fatoresDemanda, StatusProjeto? status}) {
     return Projeto(
       id: id,
       nome: nome ?? this.nome,
@@ -406,6 +607,7 @@ class Projeto {
       contratante: contratante ?? this.contratante,
       cargas: cargas ?? this.cargas,
       alimentadores: alimentadores ?? this.alimentadores,
+      fatoresDemanda: fatoresDemanda ?? this.fatoresDemanda,
       criadoEm: criadoEm,
       modificadoEm: DateTime.now(),
       status: status ?? this.status,

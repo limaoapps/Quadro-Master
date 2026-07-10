@@ -281,7 +281,6 @@ class Carga {
   LigacaoCarga ligacao;
   double tensao;
   double fatorPotencia;
-  double fatorDemanda;
   FaseCarga fase;
   String notas;
   // Motor específico
@@ -311,6 +310,8 @@ class Carga {
   // QF (industrial)
   SubtipoQF? subtipoQF;
   String metodoPadrao; // método de partida textual para QF
+  // Motor reserva (stand-by) — exclui o motor do cálculo de demanda simultânea
+  bool motorReserva;
   // Painel Elétrico
   SubtipoPainel? subtipoPainel;
   String modelo;
@@ -325,7 +326,6 @@ class Carga {
     this.ligacao = LigacaoCarga.monofasico,
     this.tensao = 220,
     this.fatorPotencia = 0.92,
-    this.fatorDemanda = 100,
     this.fase = FaseCarga.a,
     this.notas = '',
     this.rendimento = 0.90,
@@ -350,19 +350,22 @@ class Carga {
     this.subtipoPainel,
     this.modelo = '',
     this.fabricante = '',
+    this.motorReserva = false,
   });
 
   double get potenciaAtiva {
+    // Motores reserva são excluídos do cálculo de potência ativa (não operam simultaneamente)
+    if (tipo == TipoCarga.motor && motorReserva) return 0.0;
     switch (tipo) {
       case TipoCarga.tug:
-        return quantidade * potenciaNominal * (fatorDemanda / 100);
+        return quantidade * potenciaNominal;
       case TipoCarga.motor:
         final pKw = potenciaNominal * 0.7355;
-        return (pKw * fatorServico / rendimento) * 1000 * (fatorDemanda / 100);
+        return (pKw * fatorServico / rendimento) * 1000;
       case TipoCarga.resistencia:
-        return potenciaNominal * quantidade * (fatorDemanda / 100);
+        return potenciaNominal * quantidade;
       default:
-        return potenciaNominal * quantidade * (fatorDemanda / 100);
+        return potenciaNominal * quantidade;
     }
   }
 
@@ -460,7 +463,7 @@ class Carga {
     'id': id, 'descricao': descricao, 'tipo': tipo.index,
     'quantidade': quantidade, 'potenciaNominal': potenciaNominal,
     'ligacao': ligacao.index, 'tensao': tensao,
-    'fatorPotencia': fatorPotencia, 'fatorDemanda': fatorDemanda,
+    'fatorPotencia': fatorPotencia,
     'fase': fase.index, 'notas': notas,
     'rendimento': rendimento, 'fatorServico': fatorServico,
     'correnteNominal': correnteNominal, 'tipoPartida': tipoPartida.index,
@@ -480,6 +483,7 @@ class Carga {
     'subtipoPainel': subtipoPainel?.index,
     'modelo': modelo,
     'fabricante': fabricante,
+    'motorReserva': motorReserva,
   };
 
   factory Carga.fromMap(Map<String, dynamic> m) => Carga(
@@ -491,7 +495,6 @@ class Carga {
     ligacao: LigacaoCarga.values[m['ligacao'] ?? 0],
     tensao: (m['tensao'] ?? 220).toDouble(),
     fatorPotencia: (m['fatorPotencia'] ?? 0.92).toDouble(),
-    fatorDemanda: (m['fatorDemanda'] ?? 100).toDouble(),
     fase: FaseCarga.values[m['fase'] ?? 0],
     notas: m['notas'] ?? '',
     rendimento: (m['rendimento'] ?? 0.90).toDouble(),
@@ -519,5 +522,6 @@ class Carga {
         ? SubtipoPainel.values[m['subtipoPainel']] : null,
     modelo: m['modelo'] ?? '',
     fabricante: m['fabricante'] ?? '',
+    motorReserva: m['motorReserva'] ?? false,
   );
 }

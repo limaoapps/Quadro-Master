@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'carga.dart';
+import 'projeto.dart' show FatoresDemandaGrupo;
 
 class ResultadoPorFase {
   final double potenciaAtiva;
@@ -21,9 +22,10 @@ class ResultadoPorFase {
 class DistribuicaoCategoria {
   final String nome;
   final String icone;
-  final double potenciaInstalada;  // W
-  final double potenciaDemandada;  // W
+  final double potenciaInstalada;    // W — bruta antes do FD
+  final double potenciaDemandada;    // W — após FD
   final double percentualTotal;
+  final double fatorDemandaAplicado; // % do FD aplicado (0–100)
 
   DistribuicaoCategoria({
     required this.nome,
@@ -31,6 +33,7 @@ class DistribuicaoCategoria {
     required this.potenciaInstalada,
     required this.potenciaDemandada,
     required this.percentualTotal,
+    this.fatorDemandaAplicado = 100,
   });
 }
 
@@ -291,9 +294,11 @@ class ResultadoProjeto {
     required int numFases,
     required double tensaoLinha,
     required double tensaoFase,
+    FatoresDemandaGrupo? fatoresDemanda,
     double tarifaKwh = 0,
     double reservaPercent = 0,
   }) {
+    final fd = fatoresDemanda ?? FatoresDemandaGrupo();
     double pAtivaA = 0, pReativaA = 0;
     double pAtivaB = 0, pReativaB = 0;
     double pAtivaC = 0, pReativaC = 0;
@@ -304,7 +309,21 @@ class ResultadoProjeto {
 
     // ── Acumuladores por categoria ──────────────────────────────
     final Map<TipoCarga, double> catInstalada = {};
-    final Map<TipoCarga, double> catDemandada = {};
+    // catInstalada acumula potência instalada bruta (sem FD)
+    // A potência demandada é calculada APÓS o loop, por grupo
+
+    // ── Acumuladores de potência bruta por grupo (sem FD) ───────
+    // Usados para calcular FD em batch sobre o total do grupo
+    final Map<TipoCarga, double> grupoBruto = {};    // potência ativa bruta
+    final Map<TipoCarga, double> grupoReativo = {};   // reativo bruto
+
+    // ── Distribuição de potência bruta por fase (antes de aplicar FD) ──
+    final Map<TipoCarga, double> grupoFaseA = {};
+    final Map<TipoCarga, double> grupoFaseB = {};
+    final Map<TipoCarga, double> grupoFaseC = {};
+    final Map<TipoCarga, double> grupoFaseAr = {};
+    final Map<TipoCarga, double> grupoFaseBr = {};
+    final Map<TipoCarga, double> grupoFaseCr = {};
 
     // ── Verificação de seletividade ─────────────────────────────
     final problemasSelectividade = <String>[];
@@ -315,14 +334,13 @@ class ResultadoProjeto {
     // ── Detecção de motores trifásicos ──────────────────────────
     bool temMotorTrifasico = false;
 
+    // ── Contagem de motores reserva ─────────────────────────────
+    int numMotoresReserva = 0;
+    int numMotoresOperacao = 0;
+
     for (final c in cargas) {
       if (!c.ativo) continue;
-      final pa = c.potenciaAtiva;
-      final pr = c.potenciaReativa;
-      pAtivaTotal  += pa;
-      pReativaTotal += pr;
-      pDemandada   += pa;
-      modulos      += _modulosPorCarga(c);
+      modulos += _modulosPorCarga(c);
 
       if (c.quedaTensaoPercent > quedaMax) quedaMax = c.quedaTensaoPercent;
 
@@ -330,19 +348,77 @@ class ResultadoProjeto {
         temMotorTrifasico = true;
       }
 
-      // Distribui por fase usando getters temA/temB/temC
-      final nf = c.fase.numFases.toDouble();
-      if (c.fase.temA) { pAtivaA += pa / nf; pReativaA += pr / nf; }
-      if (c.fase.temB) { pAtivaB += pa / nf; pReativaB += pr / nf; }
-      if (c.fase.temC) { pAtivaC += pa / nf; pReativaC += pr / nf; }
+      // Contagem de motores reserva vs em operação
+      if (c.tipo == TipoCarga.motor) {
+        if (c.motorReserva) {
+          numMotoresReserva++;
+        } else {
+          numMotoresOperacao++;
+        }
+      }
 
-      // Categorias
-      catInstalada[c.tipo] = (catInstalada[c.tipo] ?? 0) + c.potenciaNominal * c.quantidade;
-      catDemandada[c.tipo] = (catDemandada[c.tipo] ?? 0) + pa;
+      // Motores reserva: NÃO entram no cálculo de demanda (motorReserva já retorna 0 em potenciaAtiva)
+      // mas entram no módulo (disjuntor físico existe) e na potência instalada
+      final paInstalada = c.potenciaAtiva; // já retorna 0 para motorReserva
+      final pr = c.potenciaReativa;
+
+      // Potência instalada bruta (para exibição) — usa potência nominal
+      final pInstBruta = (c.tipo == TipoCarga.motor && !c.motorReserva)
+          ? c.potenciaAtiva   // usa a potência calculada
+          : (c.motorReserva ? 0.0 : c.potenciaNominal * c.quantidade);
+
+      catInstalada[c.tipo] = (catInstalada[c.tipo] ?? 0)
+          + (c.tipo == TipoCarga.motor ? paInstalada : c.potenciaNominal * c.quantidade);
+
+      // Acumula potência bruta por grupo para aplicar FD depois
+      if (paInstalada > 0) {
+        grupoBruto[c.tipo] = (grupoBruto[c.tipo] ?? 0) + paInstalada;
+        grupoReativo[c.tipo] = (grupoReativo[c.tipo] ?? 0) + pr;
+
+        final nf = c.fase.numFases.toDouble();
+        if (c.fase.temA) {
+          grupoFaseA[c.tipo] = (grupoFaseA[c.tipo] ?? 0) + paInstalada / nf;
+          grupoFaseAr[c.tipo] = (grupoFaseAr[c.tipo] ?? 0) + pr / nf;
+        }
+        if (c.fase.temB) {
+          grupoFaseB[c.tipo] = (grupoFaseB[c.tipo] ?? 0) + paInstalada / nf;
+          grupoFaseBr[c.tipo] = (grupoFaseBr[c.tipo] ?? 0) + pr / nf;
+        }
+        if (c.fase.temC) {
+          grupoFaseC[c.tipo] = (grupoFaseC[c.tipo] ?? 0) + paInstalada / nf;
+          grupoFaseCr[c.tipo] = (grupoFaseCr[c.tipo] ?? 0) + pr / nf;
+        }
+      }
 
       for (final alerta in c.alertas) {
         alertas.add('${c.descricao}: $alerta');
       }
+    }
+
+    // Alerta de motores reserva
+    if (numMotoresReserva > 0) {
+      alertas.add('$numMotoresReserva motor(es) em reserva (stand-by) excluído(s) do cálculo de demanda');
+    }
+
+    // ── Aplicar FD por grupo e acumular totais ───────────────────
+    final Map<TipoCarga, double> catDemandada = {};
+    for (final tipo in TipoCarga.values) {
+      final bruto = grupoBruto[tipo] ?? 0;
+      if (bruto <= 0) continue;
+      final fatorGrupo = fd.fatorParaTipo(tipo) / 100.0;
+      final demandado = bruto * fatorGrupo;
+      catDemandada[tipo] = demandado;
+
+      pAtivaTotal  += demandado;
+      pReativaTotal += (grupoReativo[tipo] ?? 0) * fatorGrupo;
+      pDemandada   += demandado;
+
+      pAtivaA += (grupoFaseA[tipo] ?? 0) * fatorGrupo;
+      pReativaA += (grupoFaseAr[tipo] ?? 0) * fatorGrupo;
+      pAtivaB += (grupoFaseB[tipo] ?? 0) * fatorGrupo;
+      pReativaB += (grupoFaseBr[tipo] ?? 0) * fatorGrupo;
+      pAtivaC += (grupoFaseC[tipo] ?? 0) * fatorGrupo;
+      pReativaC += (grupoFaseCr[tipo] ?? 0) * fatorGrupo;
     }
 
     final pApATotal = sqrt(pAtivaTotal * pAtivaTotal + pReativaTotal * pReativaTotal);
@@ -443,12 +519,14 @@ class ResultadoProjeto {
       if (inst <= 0) continue;
       final dem  = catDemandada[tipo] ?? 0;
       final perc = pAtivaTotal > 0 ? (dem / pAtivaTotal) * 100 : 0.0;
+      final fatorGrupo = fd.fatorParaTipo(tipo);
       distribuicao.add(DistribuicaoCategoria(
         nome: catNomes[tipo] ?? tipo.label,
         icone: catIcones[tipo] ?? '📦',
         potenciaInstalada: inst,
         potenciaDemandada: dem,
         percentualTotal: perc,
+        fatorDemandaAplicado: fatorGrupo,
       ));
     }
     // Ordena por potência demandada decrescente

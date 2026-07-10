@@ -749,6 +749,7 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
   late int _btuSelecionado;
   // DR
   late bool _utilizaDR;
+  late bool _motorReserva;
   late String _sensibilidadeDR;
   // QF
   late SubtipoQF _subtipoQF;
@@ -760,7 +761,6 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
   late TextEditingController _potCtrl;
   late TextEditingController _qtdCtrl;
   late TextEditingController _fpCtrl;
-  late TextEditingController _fdCtrl;
   late TextEditingController _compCtrl;
   late TextEditingController _notasCtrl;
   late TextEditingController _rendCtrl;
@@ -813,7 +813,7 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
     _qtdCtrl        = TextEditingController(
         text: (c?.quantidade != null && c!.quantidade != 1) ? c.quantidade.toString() : '');
     _fpCtrl         = TextEditingController(text: c?.fatorPotencia.toString() ?? '');
-    _fdCtrl         = TextEditingController(text: c?.fatorDemanda.toString() ?? '');
+    _motorReserva = c?.motorReserva ?? false;
     _compCtrl       = TextEditingController(
         text: (c?.comprimentoRamal != null && c!.comprimentoRamal != 20)
             ? c.comprimentoRamal.toString() : '');
@@ -837,7 +837,7 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
   @override
   void dispose() {
     for (final ctrl in [
-      _descCtrl, _potCtrl, _qtdCtrl, _fpCtrl, _fdCtrl, _compCtrl,
+      _descCtrl, _potCtrl, _qtdCtrl, _fpCtrl, _compCtrl,
       _notasCtrl, _rendCtrl, _fsCtrl, _especCtrl, _drOutroCtrl,
       _modeloCtrl, _fabricanteCtrl, _correnteCtrl,
     ]) {
@@ -1139,23 +1139,6 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
             },
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _fdCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Fator Demanda', hintText: 'Ex: 100',
-              prefixIcon: Icon(Icons.percent), suffixText: '%',
-            ),
-            validator: (v) {
-              final d = double.tryParse(v ?? '');
-              if (d == null) return 'Inválido';
-              if (d <= 0 || d > 100) return '1–100%';
-              return null;
-            },
-          ),
-        ),
       ]),
       const SizedBox(height: 12),
 
@@ -1420,14 +1403,6 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
             decoration: const InputDecoration(labelText: 'Fator de Potência', hintText: 'Ex: 0.87', prefixIcon: Icon(Icons.tune)),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: TextFormField(
-            controller: _fdCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Fator Demanda (%)', hintText: 'Ex: 100', prefixIcon: Icon(Icons.percent), suffixText: '%'),
-          ),
-        ),
       ]),
       const SizedBox(height: 12),
 
@@ -1621,7 +1596,7 @@ class _CargaFilhoFormSheetState extends State<_CargaFilhoFormSheet> {
       ligacao:          _ligacao,
       tensao:           _tensao,
       fatorPotencia:    double.tryParse(_fpCtrl.text) ?? 0.92,
-      fatorDemanda:     double.tryParse(_fdCtrl.text) ?? 100,
+      motorReserva:    _tipo == TipoCarga.motor ? _motorReserva : false,
       fase:             _fase,
       notas:            notasFinais,
       rendimento:       double.tryParse(_rendCtrl.text) ?? 0.90,

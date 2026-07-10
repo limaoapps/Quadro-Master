@@ -446,8 +446,8 @@ class RelatorioScreen extends StatelessWidget {
             color: i.isOdd ? const Color(0xFFF8F9FA) : Colors.white,
             child: Row(children: [
               cell('C${(i + 1).toString().padLeft(2, '0')}', flex: 1),
-              cell(c.descricao, flex: 3, bold: true),
-              cell(c.potenciaAtiva.toStringAsFixed(0), flex: 2),
+              cell(c.motorReserva ? '${c.descricao} ⏸' : c.descricao, flex: 3, bold: true),
+              cell(c.motorReserva ? '(reserva)' : c.potenciaAtiva.toStringAsFixed(0), flex: 2),
               cell(c.corrente.toStringAsFixed(2), flex: 2),
               cell('${c.tensao.toStringAsFixed(0)} V', flex: 2),
               cell('${c.disjuntorSugerido}A', flex: 2),
@@ -1335,7 +1335,14 @@ class RelatorioScreen extends StatelessWidget {
                 _tblCell('${c.condutorSugerido.toStringAsFixed(1)} mm²'),
                 _tblCell(c.utilizaDR ? c.drTexto : '—',
                   textColor: c.utilizaDR ? _pGreen : _pGrey6),
-                _tblCell(c.notas.isNotEmpty ? c.notas : (c.fabricante.isNotEmpty ? c.fabricante : '—')),
+                _tblCell(
+                  c.motorReserva
+                      ? 'RESERVA (stand-by)'
+                      : c.notas.isNotEmpty
+                          ? c.notas
+                          : (c.fabricante.isNotEmpty ? c.fabricante : '—'),
+                  textColor: c.motorReserva ? _pOrange : null,
+                ),
               ],
             );
           }),
