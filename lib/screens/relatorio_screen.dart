@@ -843,7 +843,53 @@ class RelatorioScreen extends StatelessWidget {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // CONSTRUÇÃO DO CONTEÚDO — MultiPage
+    // HELPERS — ícones compatíveis com PDF (sem Unicode)
+    // ═══════════════════════════════════════════════════════════
+
+    // Ícone OK  (circulo preenchido verde + "V" estilizado)
+    pw.Widget icoOk() => pw.Container(
+      width: 9, height: 9,
+      decoration: const pw.BoxDecoration(color: _pGreen, shape: pw.BoxShape.circle),
+      alignment: pw.Alignment.center,
+      child: pw.Text('V', style: pw.TextStyle(fontSize: 5.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
+    );
+
+    // Ícone Alerta (triângulo laranja com "!")
+    pw.Widget icoAlerta() => pw.Container(
+      width: 9, height: 9,
+      decoration: const pw.BoxDecoration(color: _pYellow, shape: pw.BoxShape.circle),
+      alignment: pw.Alignment.center,
+      child: pw.Text('!', style: pw.TextStyle(fontSize: 6, color: _pBlack, fontWeight: pw.FontWeight.bold)),
+    );
+
+    // Ícone Erro / Problema (circulo vermelho com "X")
+    pw.Widget icoErro() => pw.Container(
+      width: 9, height: 9,
+      decoration: const pw.BoxDecoration(color: _pRed, shape: pw.BoxShape.circle),
+      alignment: pw.Alignment.center,
+      child: pw.Text('X', style: pw.TextStyle(fontSize: 5.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
+    );
+
+    // Ícone Seta / Recomendação (retângulo laranja com ">")
+    pw.Widget icoSeta() => pw.Container(
+      width: 9, height: 9,
+      decoration: const pw.BoxDecoration(color: _pOrange, shape: pw.BoxShape.circle),
+      alignment: pw.Alignment.center,
+      child: pw.Text('>', style: pw.TextStyle(fontSize: 6, color: _pWhite, fontWeight: pw.FontWeight.bold)),
+    );
+
+    // ═══════════════════════════════════════════════════════════
+    // HELPER — bloco "keep-together" comentário:
+    // Cada seção é emitida como item separado na lista build(),
+    // permitindo ao MultiPage decidir quebras ANTES do título,
+    // evitando o problema de título orphan no final de página.
+    // ═══════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════
+    // CONSTRUÇÃO DO CONTEÚDO — MultiPage com quebras inteligentes
+    // Cada seção é emitida como item SEPARADO na lista do build(),
+    // o que permite ao MultiPage decidir a quebra de página ANTES
+    // do título da seção (nunca no meio).
     // ═══════════════════════════════════════════════════════════
     doc.addPage(pw.MultiPage(
       pageTheme: pw.PageTheme(
@@ -855,16 +901,16 @@ class RelatorioScreen extends StatelessWidget {
       footer: pdfFooter,
       build: (pw.Context ctx) {
         return [
-          // ── Espaço após header ──────────────────────────────
+
+          // ════════════════════════════════════════════════════
+          // BLOCO 1 — DADOS DAS EMPRESAS
+          // (título + cards numa única peça — nunca orphan)
+          // ════════════════════════════════════════════════════
           pw.Padding(
             padding: const pw.EdgeInsets.fromLTRB(22, 12, 22, 0),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-
-                // ════════════════════════════════════════════
-                // 1 — EMPRESA CONTRATANTE & EXECUTADORA
-                // ════════════════════════════════════════════
                 secTitulo('1', 'DADOS DAS EMPRESAS'),
                 pw.Row(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -873,13 +919,13 @@ class RelatorioScreen extends StatelessWidget {
                       child: empresaPdf(
                         'EMPRESA EXECUTADORA',
                         [
-                          if (projeto.executora.razaoSocial.isNotEmpty)   ('Razao Social',     projeto.executora.razaoSocial),
-                          if (projeto.executora.responsavel.isNotEmpty)   ('Responsavel',      projeto.executora.responsavel),
-                          if (projeto.executora.registro.isNotEmpty)      (_cargoRegistroLabel(projeto.executora.cargo), projeto.executora.registro),
-                          if (projeto.executora.documento.isNotEmpty)     ('CNPJ',             projeto.executora.documento),
-                          if (projeto.executora.telefone.isNotEmpty)      ('Telefone',         projeto.executora.telefone),
-                          if (projeto.executora.email.isNotEmpty)         ('E-mail',           projeto.executora.email),
-                          if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereco',      projeto.executora.enderecoCompleto),
+                          if (projeto.executora.razaoSocial.isNotEmpty)      ('Razao Social', projeto.executora.razaoSocial),
+                          if (projeto.executora.responsavel.isNotEmpty)      ('Responsavel',  projeto.executora.responsavel),
+                          if (projeto.executora.registro.isNotEmpty)         (_cargoRegistroLabel(projeto.executora.cargo), projeto.executora.registro),
+                          if (projeto.executora.documento.isNotEmpty)        ('CNPJ',         projeto.executora.documento),
+                          if (projeto.executora.telefone.isNotEmpty)         ('Telefone',     projeto.executora.telefone),
+                          if (projeto.executora.email.isNotEmpty)            ('E-mail',       projeto.executora.email),
+                          if (projeto.executora.enderecoCompleto.isNotEmpty) ('Endereco',     projeto.executora.enderecoCompleto),
                         ],
                         logoImg: logoExec,
                       ),
@@ -889,24 +935,31 @@ class RelatorioScreen extends StatelessWidget {
                       child: empresaPdf(
                         'EMPRESA CONTRATANTE',
                         [
-                          if (projeto.contratante.razaoSocial.isNotEmpty)  ('Razao Social', projeto.contratante.razaoSocial),
-                          if (projeto.contratante.responsavel.isNotEmpty)  ('Responsavel',  projeto.contratante.responsavel),
-                          if (projeto.contratante.documento.isNotEmpty)    ('CNPJ',         projeto.contratante.documento),
-                          if (projeto.contratante.telefone.isNotEmpty)     ('Telefone',     projeto.contratante.telefone),
-                          if (projeto.contratante.email.isNotEmpty)        ('E-mail',       projeto.contratante.email),
-                          if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Endereco', projeto.contratante.enderecoCompleto),
-                          if (projeto.contratante.art.isNotEmpty)          ('ART No.',      projeto.contratante.art),
+                          if (projeto.contratante.razaoSocial.isNotEmpty)      ('Razao Social', projeto.contratante.razaoSocial),
+                          if (projeto.contratante.responsavel.isNotEmpty)      ('Responsavel',  projeto.contratante.responsavel),
+                          if (projeto.contratante.documento.isNotEmpty)        ('CNPJ',         projeto.contratante.documento),
+                          if (projeto.contratante.telefone.isNotEmpty)         ('Telefone',     projeto.contratante.telefone),
+                          if (projeto.contratante.email.isNotEmpty)            ('E-mail',       projeto.contratante.email),
+                          if (projeto.contratante.enderecoCompleto.isNotEmpty) ('Endereco',     projeto.contratante.enderecoCompleto),
+                          if (projeto.contratante.art.isNotEmpty)              ('ART No.',      projeto.contratante.art),
                         ],
                       ),
                     ),
                   ],
                 ),
-
                 pw.SizedBox(height: 14),
+              ],
+            ),
+          ),
 
-                // ════════════════════════════════════════════
-                // 2 — DADOS DO PROJETO
-                // ════════════════════════════════════════════
+          // ════════════════════════════════════════════════════
+          // BLOCO 2 — DADOS DO PROJETO
+          // ════════════════════════════════════════════════════
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
                 secTitulo('2', 'DADOS DO PROJETO'),
                 pw.Container(
                   decoration: pw.BoxDecoration(
@@ -914,69 +967,66 @@ class RelatorioScreen extends StatelessWidget {
                     borderRadius: pw.BorderRadius.circular(4),
                   ),
                   child: pw.Column(children: [
-                    // Linha de pílulas
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
                       child: pw.Row(children: [
-                        pw.Expanded(child: pilula('Tipo do Quadro',   projeto.tipoQuadro.label)),
+                        pw.Expanded(child: pilula('Tipo do Quadro',  projeto.tipoQuadro.label)),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Tensao de Alim.',  '${projeto.tensao.valor.toStringAsFixed(0)} V')),
+                        pw.Expanded(child: pilula('Tensao de Alim.', '${projeto.tensao.valor.toStringAsFixed(0)} V')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Numero de Fases',  projeto.numFases.label)),
+                        pw.Expanded(child: pilula('Numero de Fases', projeto.numFases.label)),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Frequencia',       '60 Hz')),
+                        pw.Expanded(child: pilula('Frequencia',      '60 Hz')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Aterramento',      'TN-S')),
+                        pw.Expanded(child: pilula('Aterramento',     'TN-S')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Total Circuitos',  '${cargas.length}')),
+                        pw.Expanded(child: pilula('Total Circuitos', '${cargas.length}')),
                       ]),
                     ),
                     pw.Divider(height: 1, color: _pGrey4),
-                    // Resultados elétricos principais
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(8),
                       child: pw.Row(children: [
-                        pw.Expanded(child: pilula('Potencia Instalada',  '${resultado.totalPotenciaAtiva.toStringAsFixed(2)} kW')),
+                        pw.Expanded(child: pilula('Potencia Instalada', '${resultado.totalPotenciaAtiva.toStringAsFixed(2)} kW')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Potencia Demandada',  '${resultado.totalPotenciaDemandada.toStringAsFixed(2)} kW')),
+                        pw.Expanded(child: pilula('Potencia Demandada', '${resultado.totalPotenciaDemandada.toStringAsFixed(2)} kW')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Potencia Aparente',   '${resultado.totalPotenciaAparente.toStringAsFixed(2)} kVA')),
+                        pw.Expanded(child: pilula('Potencia Aparente',  '${resultado.totalPotenciaAparente.toStringAsFixed(2)} kVA')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Corrente Total',      '${resultado.correnteTotal.toStringAsFixed(2)} A')),
+                        pw.Expanded(child: pilula('Corrente Total',     '${resultado.correnteTotal.toStringAsFixed(2)} A')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Corrente/Fase',       '${resultado.correnteMedia.toStringAsFixed(2)} A')),
+                        pw.Expanded(child: pilula('Corrente/Fase',      '${resultado.correnteMedia.toStringAsFixed(2)} A')),
                         pw.SizedBox(width: 6),
-                        pw.Expanded(child: pilula('Disjuntor Geral',     '${resultado.disjuntorPolos}P x ${resultado.disjuntorGeral}A')),
+                        pw.Expanded(child: pilula('Disjuntor Geral',    '${resultado.disjuntorPolos}P x ${resultado.disjuntorGeral}A')),
                       ]),
                     ),
                   ]),
                 ),
-
                 pw.SizedBox(height: 14),
-
-                // ════════════════════════════════════════════
-                // 3 — TABELA DE CARGAS
-                // ════════════════════════════════════════════
-                secTitulo('3', 'TABELA DE CARGAS'),
               ],
             ),
           ),
 
-          // ── Tabela de cargas (fora do padding para borda cheia) ──
+          // ════════════════════════════════════════════════════
+          // BLOCO 3 — TABELA DE CARGAS
+          // Título emitido em padding separado + tabela logo abaixo
+          // ════════════════════════════════════════════════════
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 4),
+            child: secTitulo('3', 'TABELA DE CARGAS'),
+          ),
           _buildPdfTabelaCargas(cargas, resultado),
-
           pw.SizedBox(height: 14),
 
-          // ── Memorial de cálculo ─────────────────────────────────
+          // ════════════════════════════════════════════════════
+          // BLOCO 4 — MEMORIAL DE CÁLCULO
+          // pw.Column garante que título + 1ª sub-seção ficam juntos
+          // ════════════════════════════════════════════════════
           pw.Padding(
             padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-
-                // ════════════════════════════════════════════
-                // 4 — MEMORIAL DE CÁLCULO
-                // ════════════════════════════════════════════
                 secTitulo('4', 'MEMORIAL DE CALCULO'),
                 pw.Container(
                   decoration: pw.BoxDecoration(
@@ -984,7 +1034,6 @@ class RelatorioScreen extends StatelessWidget {
                     borderRadius: pw.BorderRadius.circular(4),
                   ),
                   child: pw.Column(children: [
-                    // Sub-título
                     pw.Container(
                       width: double.infinity,
                       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -992,18 +1041,17 @@ class RelatorioScreen extends StatelessWidget {
                       child: pw.Text('4.1 — Potencias e Correntes',
                         style: pw.TextStyle(fontSize: 7.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
                     ),
-                    dadoRow('Potencia Ativa Total Instalada (ΣP)',         '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
-                    dadoRow('Potencia Reativa Total (ΣQ)',                  '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr', alt: true),
+                    dadoRow('Potencia Ativa Total Instalada (SP)',          '${resultado.totalPotenciaAtiva.toStringAsFixed(3)} kW'),
+                    dadoRow('Potencia Reativa Total (SQ)',                   '${resultado.totalPotenciaReativa.toStringAsFixed(3)} kVAr', alt: true),
                     dadoRow('Potencia Aparente Total (S)',                   '${resultado.totalPotenciaAparente.toStringAsFixed(3)} kVA'),
-                    dadoRow('Potencia Demandada (com FD aplicado)',         '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW', alt: true),
-                    dadoRow('Fator de Potencia Medio (FP)',                 resultado.fatorPotenciaMedio.toStringAsFixed(4)),
-                    dadoRow('Corrente Total (I)',                           '${resultado.correnteTotal.toStringAsFixed(3)} A', alt: true),
-                    dadoRow('Corrente de Projeto (I × 1,25 — NBR 5410)',   '${resultado.correnteProjeto.toStringAsFixed(3)} A'),
-                    dadoRow('Corrente Fase A',                              '${resultado.correnteFaseA.toStringAsFixed(3)} A', alt: true),
-                    dadoRow('Corrente Fase B',                              '${resultado.correnteFaseB.toStringAsFixed(3)} A'),
-                    dadoRow('Corrente Fase C',                              '${resultado.correnteFaseC.toStringAsFixed(3)} A', alt: true),
-                    dadoRow('Corrente de Neutro estimada',                  '${resultado.correnteNeutro.toStringAsFixed(3)} A'),
-
+                    dadoRow('Potencia Demandada (com FD aplicado)',          '${resultado.totalPotenciaDemandada.toStringAsFixed(3)} kW', alt: true),
+                    dadoRow('Fator de Potencia Medio (FP)',                  resultado.fatorPotenciaMedio.toStringAsFixed(4)),
+                    dadoRow('Corrente Total (I)',                            '${resultado.correnteTotal.toStringAsFixed(3)} A', alt: true),
+                    dadoRow('Corrente de Projeto (I x 1,25 — NBR 5410)',    '${resultado.correnteProjeto.toStringAsFixed(3)} A'),
+                    dadoRow('Corrente Fase A',                               '${resultado.correnteFaseA.toStringAsFixed(3)} A', alt: true),
+                    dadoRow('Corrente Fase B',                               '${resultado.correnteFaseB.toStringAsFixed(3)} A'),
+                    dadoRow('Corrente Fase C',                               '${resultado.correnteFaseC.toStringAsFixed(3)} A', alt: true),
+                    dadoRow('Corrente de Neutro estimada',                   '${resultado.correnteNeutro.toStringAsFixed(3)} A'),
                     pw.Container(
                       width: double.infinity,
                       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1011,13 +1059,12 @@ class RelatorioScreen extends StatelessWidget {
                       child: pw.Text('4.2 — Dimensionamento da Protecao',
                         style: pw.TextStyle(fontSize: 7.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
                     ),
-                    dadoRow('Disjuntor Geral Dimensionado',                 '${resultado.disjuntorPolos}P  x  ${resultado.disjuntorGeral} A', alt: true),
-                    dadoRow('Utilizacao do Disjuntor Geral',                '${resultado.utilizacaoDisjuntor.toStringAsFixed(1)} %  (${resultado.classificacaoDisjuntor.label})'),
-                    dadoRow('Capacidade de Interrupcao adotada',            '${resultado.capacidadeInterrupcao.toStringAsFixed(1)} kA', alt: true),
-                    dadoRow('Corrente de Curto-Circuito estimada',          '${resultado.correnteCurtoEstimada.toStringAsFixed(3)} kA'),
-                    dadoRow('Disjuntor adequado ao Icc',                    resultado.disjuntorAdequadoIcc ? 'SIM — adequado' : 'ATENCAO — verificar Icc', alt: true),
-                    dadoRow('Coordenacao e Seletividade',                   resultado.seletividadeOk ? 'OK — seletividade adequada' : 'PROBLEMA — verificar'),
-
+                    dadoRow('Disjuntor Geral Dimensionado',                  '${resultado.disjuntorPolos}P  x  ${resultado.disjuntorGeral} A', alt: true),
+                    dadoRow('Utilizacao do Disjuntor Geral',                 '${resultado.utilizacaoDisjuntor.toStringAsFixed(1)} %  (${resultado.classificacaoDisjuntor.label})'),
+                    dadoRow('Capacidade de Interrupcao adotada',             '${resultado.capacidadeInterrupcao.toStringAsFixed(1)} kA', alt: true),
+                    dadoRow('Corrente de Curto-Circuito estimada',           '${resultado.correnteCurtoEstimada.toStringAsFixed(3)} kA'),
+                    dadoRow('Disjuntor adequado ao Icc',                     resultado.disjuntorAdequadoIcc ? 'SIM — adequado' : 'ATENCAO — verificar Icc', alt: true),
+                    dadoRow('Coordenacao e Seletividade',                    resultado.seletividadeOk ? 'OK — seletividade adequada' : 'PROBLEMA — verificar'),
                     pw.Container(
                       width: double.infinity,
                       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1025,14 +1072,13 @@ class RelatorioScreen extends StatelessWidget {
                       child: pw.Text('4.3 — Balanceamento e Queda de Tensao',
                         style: pw.TextStyle(fontSize: 7.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
                     ),
-                    dadoRow('Desbalanceamento entre Fases',                 '${resultado.desbalanceamentoPercent.toStringAsFixed(2)} %  (${resultado.classificacaoBalanceamento.label})', alt: true),
-                    dadoRow('Corrente Media por Fase',                      '${resultado.correnteMedia.toStringAsFixed(3)} A'),
-                    dadoRow('Diferenca Maxima entre Fases',                 '${resultado.diferencaMaxima.toStringAsFixed(3)} A', alt: true),
-                    dadoRow('Queda de Tensao Maxima estimada',              '${resultado.quedaTensaoMax.toStringAsFixed(2)} %  (limite NBR 5410: 4 %)'),
-                    dadoRow('Fator de Potencia medio',                      '${resultado.fatorPotenciaMedio.toStringAsFixed(3)}  (minimo ANEEL: 0,92)', alt: true),
+                    dadoRow('Desbalanceamento entre Fases',                  '${resultado.desbalanceamentoPercent.toStringAsFixed(2)} %  (${resultado.classificacaoBalanceamento.label})', alt: true),
+                    dadoRow('Corrente Media por Fase',                       '${resultado.correnteMedia.toStringAsFixed(3)} A'),
+                    dadoRow('Diferenca Maxima entre Fases',                  '${resultado.diferencaMaxima.toStringAsFixed(3)} A', alt: true),
+                    dadoRow('Queda de Tensao Maxima estimada',               '${resultado.quedaTensaoMax.toStringAsFixed(2)} %  (limite NBR 5410: 4 %)'),
+                    dadoRow('Fator de Potencia medio',                       '${resultado.fatorPotenciaMedio.toStringAsFixed(3)}  (minimo ANEEL: 0,92)', alt: true),
                     if (resultado.necessitaCorrecaoFP)
-                      dadoRow('Banco de Capacitores necessario',            '${resultado.capacitorKvar.toStringAsFixed(2)} kVAr'),
-
+                      dadoRow('Banco de Capacitores necessario',             '${resultado.capacitorKvar.toStringAsFixed(2)} kVAr'),
                     pw.Container(
                       width: double.infinity,
                       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1040,23 +1086,30 @@ class RelatorioScreen extends StatelessWidget {
                       child: pw.Text('4.4 — Taxa de Ocupacao e Reserva',
                         style: pw.TextStyle(fontSize: 7.5, color: _pWhite, fontWeight: pw.FontWeight.bold)),
                     ),
-                    dadoRow('Modulos Utilizados',                           '${resultado.modulosUtilizados} modulos', alt: true),
-                    dadoRow('Modulos Disponiveis no Quadro',                '${resultado.modulosDisponiveis} modulos'),
-                    dadoRow('Modulos Livres (reserva)',                     '${resultado.modulosLivres} modulos', alt: true),
-                    dadoRow('Taxa de Ocupacao do Quadro',                   '${resultado.percentOcupacao.toStringAsFixed(1)} %'),
-                    dadoRow('Reserva de Modulos',                           '${resultado.percentReservaQuadro.toStringAsFixed(1)} %', alt: true),
-                    dadoRow('Corrente Maxima do Quadro',                    '${resultado.correnteMaximaQuadro.toStringAsFixed(1)} A'),
-                    dadoRow('Corrente Restante (reserva de carga)',         '${resultado.correnteRestante.toStringAsFixed(1)} A', alt: true),
-                    dadoRow('Reserva de Carga percentual',                  '${resultado.percentReservaCarga.toStringAsFixed(1)} %'),
-                    dadoRow('Indice Geral de Qualidade',                    '${resultado.indiceGeral.toStringAsFixed(0)} / 100  (${resultado.classificacaoIndice.label})', alt: true),
+                    dadoRow('Modulos Utilizados',                            '${resultado.modulosUtilizados} modulos', alt: true),
+                    dadoRow('Modulos Disponiveis no Quadro',                 '${resultado.modulosDisponiveis} modulos'),
+                    dadoRow('Modulos Livres (reserva)',                      '${resultado.modulosLivres} modulos', alt: true),
+                    dadoRow('Taxa de Ocupacao do Quadro',                    '${resultado.percentOcupacao.toStringAsFixed(1)} %'),
+                    dadoRow('Reserva de Modulos',                            '${resultado.percentReservaQuadro.toStringAsFixed(1)} %', alt: true),
+                    dadoRow('Corrente Maxima do Quadro',                     '${resultado.correnteMaximaQuadro.toStringAsFixed(1)} A'),
+                    dadoRow('Corrente Restante (reserva de carga)',          '${resultado.correnteRestante.toStringAsFixed(1)} A', alt: true),
+                    dadoRow('Reserva de Carga percentual',                   '${resultado.percentReservaCarga.toStringAsFixed(1)} %'),
+                    dadoRow('Indice Geral de Qualidade',                     '${resultado.indiceGeral.toStringAsFixed(0)} / 100  (${resultado.classificacaoIndice.label})', alt: true),
                   ]),
                 ),
-
                 pw.SizedBox(height: 14),
+              ],
+            ),
+          ),
 
-                // ════════════════════════════════════════════
-                // 5 — DIAGNÓSTICO TÉCNICO
-                // ════════════════════════════════════════════
+          // ════════════════════════════════════════════════════
+          // BLOCO 5 — DIAGNÓSTICO TÉCNICO
+          // ════════════════════════════════════════════════════
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
                 secTitulo('5', 'DIAGNOSTICO TECNICO'),
                 pw.Row(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1084,9 +1137,10 @@ class RelatorioScreen extends StatelessWidget {
                         else
                           ...resultado.diagnosticoConformes.asMap().entries.map((e) => pw.Container(
                             color: e.key.isOdd ? _pGrey10 : _pWhite,
-                            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                              pw.Text('✓ ', style: pw.TextStyle(fontSize: 7, color: _pGreen, fontWeight: pw.FontWeight.bold)),
+                              icoOk(),
+                              pw.SizedBox(width: 5),
                               pw.Expanded(child: pw.Text(e.value, style: const pw.TextStyle(fontSize: 7, color: _pGrey6))),
                             ]),
                           )),
@@ -1116,9 +1170,10 @@ class RelatorioScreen extends StatelessWidget {
                         else
                           ...resultado.diagnosticoProblemas.asMap().entries.map((e) => pw.Container(
                             color: e.key.isOdd ? _pGrey10 : _pWhite,
-                            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                              pw.Text('! ', style: pw.TextStyle(fontSize: 7, color: _pRed, fontWeight: pw.FontWeight.bold)),
+                              icoErro(),
+                              pw.SizedBox(width: 5),
                               pw.Expanded(child: pw.Text(e.value, style: const pw.TextStyle(fontSize: 7, color: _pGrey6))),
                             ]),
                           )),
@@ -1126,11 +1181,21 @@ class RelatorioScreen extends StatelessWidget {
                     )),
                   ],
                 ),
-
                 pw.SizedBox(height: 10),
+              ],
+            ),
+          ),
 
-                // Recomendações
-                if (resultado.diagnosticoRecomendacoes.isNotEmpty) ...[
+          // ════════════════════════════════════════════════════
+          // BLOCO 6 — RECOMENDAÇÕES TÉCNICAS
+          // ════════════════════════════════════════════════════
+          if (resultado.diagnosticoRecomendacoes.isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  secTitulo('6', 'RECOMENDACOES TECNICAS'),
                   pw.Container(
                     width: double.infinity,
                     decoration: pw.BoxDecoration(
@@ -1147,9 +1212,10 @@ class RelatorioScreen extends StatelessWidget {
                       ),
                       ...resultado.diagnosticoRecomendacoes.asMap().entries.map((e) => pw.Container(
                         color: e.key.isOdd ? _pGrey10 : _pWhite,
-                        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                          pw.Text('→ ', style: pw.TextStyle(fontSize: 7, color: _pOrange, fontWeight: pw.FontWeight.bold)),
+                          icoSeta(),
+                          pw.SizedBox(width: 5),
                           pw.Expanded(child: pw.Text(e.value, style: const pw.TextStyle(fontSize: 7, color: _pGrey6))),
                         ]),
                       )),
@@ -1157,9 +1223,19 @@ class RelatorioScreen extends StatelessWidget {
                   ),
                   pw.SizedBox(height: 10),
                 ],
+              ),
+            ),
 
-                // Alertas gerais
-                if (resultado.alertas.isNotEmpty) ...[
+          // ════════════════════════════════════════════════════
+          // BLOCO 7 — ALERTAS DO SISTEMA
+          // ════════════════════════════════════════════════════
+          if (resultado.alertas.isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  secTitulo('7', 'ALERTAS DO SISTEMA'),
                   pw.Container(
                     width: double.infinity,
                     decoration: pw.BoxDecoration(
@@ -1176,9 +1252,10 @@ class RelatorioScreen extends StatelessWidget {
                       ),
                       ...resultado.alertas.asMap().entries.map((e) => pw.Container(
                         color: e.key.isOdd ? _pGrey10 : _pWhite,
-                        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                          pw.Text('⚠ ', style: pw.TextStyle(fontSize: 7, color: _pYellow, fontWeight: pw.FontWeight.bold)),
+                          icoAlerta(),
+                          pw.SizedBox(width: 5),
                           pw.Expanded(child: pw.Text(e.value, style: const pw.TextStyle(fontSize: 7, color: _pGrey6))),
                         ]),
                       )),
@@ -1186,10 +1263,19 @@ class RelatorioScreen extends StatelessWidget {
                   ),
                   pw.SizedBox(height: 10),
                 ],
+              ),
+            ),
 
-                // Observações do projeto
-                if (projeto.observacoes.isNotEmpty) ...[
-                  secTitulo('6', 'OBSERVACOES TECNICAS'),
+          // ════════════════════════════════════════════════════
+          // BLOCO 8 — OBSERVAÇÕES TÉCNICAS (opcional)
+          // ════════════════════════════════════════════════════
+          if (projeto.observacoes.isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  secTitulo('8', 'OBSERVACOES TECNICAS'),
                   pw.Container(
                     width: double.infinity,
                     padding: const pw.EdgeInsets.all(10),
@@ -1203,45 +1289,518 @@ class RelatorioScreen extends StatelessWidget {
                   ),
                   pw.SizedBox(height: 10),
                 ],
+              ),
+            ),
 
-                // Espaço antes do rodapé
-                pw.SizedBox(height: 8),
+          // ════════════════════════════════════════════════════
+          // BLOCO 9 — DIAGRAMA UNIFILAR
+          // ════════════════════════════════════════════════════
+          _buildPdfDiagramaUnifilar(cargas, resultado, secTitulo),
 
-                // Linha de assinatura
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: _pGrey4, width: 0.5),
-                    borderRadius: pw.BorderRadius.circular(4),
+          // ════════════════════════════════════════════════════
+          // BLOCO FINAL — Linha de assinatura
+          // ════════════════════════════════════════════════════
+          pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(22, 8, 22, 8),
+            child: pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: _pGrey4, width: 0.5),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Row(children: [
+                pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text('Responsavel Tecnico:', style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    projeto.executora.responsavel.isNotEmpty
+                        ? projeto.executora.responsavel
+                        : '___________________________',
+                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _pBlack),
                   ),
-                  child: pw.Row(children: [
-                    pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text('Responsavel Tecnico:', style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
-                      pw.SizedBox(height: 2),
-                      pw.Text(projeto.executora.responsavel.isNotEmpty ? projeto.executora.responsavel : '___________________________',
-                        style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _pBlack)),
-                      if (projeto.executora.registro.isNotEmpty)
-                        pw.Text('${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro}',
-                          style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
-                    ])),
-                    pw.SizedBox(width: 20),
-                    pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                      pw.Text('Data de emissao:', style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
-                      pw.Text(nowFull, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _pBlack)),
-                      pw.Text('Documento gerado por Quadro Master', style: const pw.TextStyle(fontSize: 6, color: _pGrey4)),
-                    ]),
-                  ]),
-                ),
-
-              ],
+                  if (projeto.executora.registro.isNotEmpty)
+                    pw.Text('${_cargoRegistroLabel(projeto.executora.cargo)}: ${projeto.executora.registro}',
+                      style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
+                ])),
+                pw.SizedBox(width: 20),
+                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+                  pw.Text('Data de emissao:', style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
+                  pw.Text(nowFull, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _pBlack)),
+                  pw.Text('Documento gerado por Quadro Master', style: const pw.TextStyle(fontSize: 6, color: _pGrey4)),
+                ]),
+              ]),
             ),
           ),
+
         ];
       },
     ));
 
     return doc;
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // DIAGRAMA UNIFILAR PDF — estrutura profissional NBR
+  // Reproduz a lógica do modelo de referência:
+  //   • Borda externa tracejada
+  //   • Disjuntor geral + alimentação principal (COBRE) no topo esq.
+  //   • Barramento vertical central com ramificações para cada circuito
+  //   • Cada circuito: fase(s) | disjuntor | bitola | potência | nome
+  //   • Motores reserva identificados com "(RESERVA)"
+  //   • DR/IDR quando aplicável
+  //   • Aterramento no centro-esquerdo
+  //   • Rodapé com título + tabela de informações do projeto
+  // ══════════════════════════════════════════════════════════════
+  pw.Widget _buildPdfDiagramaUnifilar(
+    List<Carga> cargas,
+    ResultadoProjeto resultado,
+    pw.Widget Function(String, String) secTitulo,
+  ) {
+    // ── Parâmetros do disjuntor geral ────────────────────────────
+    final djGeral    = resultado.disjuntorGeral;
+    final djPolos    = resultado.disjuntorPolos;
+    final kvaTotal   = resultado.totalPotenciaAparente;
+    final tensaoSist = cargas.isNotEmpty ? cargas.first.tensao.toStringAsFixed(0) : '220';
+
+    // ── Bitola do alimentador principal ─────────────────────────
+    // Estimativa simples: Icc / 6 A/mm² (alumínio) → arredonda para padrão
+    String bitolaAlim = '10';
+    final iProj = resultado.correnteProjeto;
+    if (iProj > 100) bitolaAlim = '35';
+    else if (iProj > 70) bitolaAlim = '25';
+    else if (iProj > 45) bitolaAlim = '16';
+    else if (iProj > 28) bitolaAlim = '10';
+    else if (iProj > 18) bitolaAlim = '6';
+    else bitolaAlim = '4';
+
+    // ── Fase label ───────────────────────────────────────────────
+    String fasesLabel(Carga c) {
+      final l = c.ligacao.label;
+      if (l.contains('Trifas') || l.contains('3F')) return 'R/S/T';
+      if (l.contains('Bifas') || l.contains('2F'))  return 'R/S';
+      return 'R';
+    }
+
+    // ── Tipo de curva do disjuntor ───────────────────────────────
+    String curvaDisj(Carga c) {
+      if (c.tipo == TipoCarga.motor) return 'D';
+      if (c.tipo == TipoCarga.arCondicionado) return 'C';
+      return 'C';
+    }
+
+    // ── Potência formatada por circuito ─────────────────────────
+    String potFormatada(Carga c) {
+      final s = c.potenciaAtiva / (c.fatorPotencia > 0 ? c.fatorPotencia : 0.85);
+      if (s >= 1000) return '${(s / 1000).toStringAsFixed(2)} kVA';
+      return '${s.toStringAsFixed(0)} VA';
+    }
+
+    // ── Símbolo de disjuntor (caixa + cruz) ─────────────────────
+    pw.Widget simDisjuntor({double w = 22, double h = 10, bool ativo = true}) =>
+      pw.Container(
+        width: w, height: h,
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: ativo ? _pNavy : _pGrey4, width: 0.8),
+          color: ativo ? const PdfColor(0.85, 0.90, 1.0) : _pGrey10,
+        ),
+        child: pw.CustomPaint(painter: (canvas, size) {
+          if (!ativo) return;
+          canvas.setStrokeColor(_pNavy);
+          canvas.setLineWidth(0.5);
+          canvas.moveTo(0, 0);
+          canvas.lineTo(size.x, size.y);
+          canvas.strokePath();
+        }),
+      );
+
+    // ── Linha de circuito ────────────────────────────────────────
+    // Estrutura: [Fases] [Disj] [━━━] [bitola #Xmm²] [KVA] [Nome]
+    pw.Widget linhaCircuito(int idx, Carga c) {
+      final isReserva = c.motorReserva;
+      final fases     = fasesLabel(c);
+      final disj      = c.disjuntorSugerido;
+      final curva     = curvaDisj(c);
+      final bitola    = '${c.condutorSugerido.toStringAsFixed(1)} mm²';
+      final pot       = isReserva ? '—' : potFormatada(c);
+      final nome      = c.descricao + (isReserva ? ' RESERVA' : '');
+      final temDR     = c.utilizaDR;
+
+      return pw.Container(
+        color: idx.isOdd ? _pGrey10 : _pWhite,
+        padding: const pw.EdgeInsets.symmetric(vertical: 3.5),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            // Fases — largura fixa
+            pw.SizedBox(
+              width: 32,
+              child: pw.Text(fases,
+                style: pw.TextStyle(
+                  fontSize: 6.5,
+                  fontWeight: pw.FontWeight.bold,
+                  color: isReserva ? _pGrey6 : _pNavy,
+                ),
+              ),
+            ),
+            // Símbolo do disjuntor
+            simDisjuntor(w: 20, h: 9, ativo: !isReserva),
+            pw.SizedBox(width: 2),
+            // Corrente + curva
+            pw.SizedBox(
+              width: 36,
+              child: pw.Text('${disj}A ($curva)',
+                style: pw.TextStyle(
+                  fontSize: 6,
+                  color: isReserva ? _pGrey6 : _pBlack,
+                ),
+              ),
+            ),
+            // Linha de condutor (visual)
+            pw.Container(width: 12, height: 1, color: isReserva ? _pGrey4 : _pNavy),
+            // DR se houver
+            if (temDR) ...[
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: _pGreen, width: 0.6),
+                  borderRadius: pw.BorderRadius.circular(2),
+                ),
+                child: pw.Text('DR', style: pw.TextStyle(fontSize: 5, color: _pGreen, fontWeight: pw.FontWeight.bold)),
+              ),
+              pw.SizedBox(width: 2),
+            ],
+            // Símbolo do condutor e bitola
+            pw.Container(width: 10, height: 1, color: isReserva ? _pGrey4 : _pNavy),
+            pw.SizedBox(width: 3),
+            // Bitola
+            pw.SizedBox(
+              width: 40,
+              child: pw.Text('#$bitola',
+                style: pw.TextStyle(
+                  fontSize: 6,
+                  color: isReserva ? _pGrey6 : _pBlack,
+                ),
+              ),
+            ),
+            // Potência
+            pw.SizedBox(
+              width: 48,
+              child: pw.Text('($pot)',
+                style: pw.TextStyle(
+                  fontSize: 6,
+                  color: isReserva ? _pGrey6 : _pBlack,
+                ),
+              ),
+            ),
+            // Nome da carga
+            pw.Expanded(
+              child: pw.Text(
+                nome,
+                style: pw.TextStyle(
+                  fontSize: 6.5,
+                  color: isReserva ? _pGrey6 : _pBlack,
+                  fontWeight: isReserva ? pw.FontWeight.normal : pw.FontWeight.bold,
+                  fontStyle: isReserva ? pw.FontStyle.italic : pw.FontStyle.normal,
+                ),
+                overflow: pw.TextOverflow.clip,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Layout principal do diagrama ─────────────────────────────
+    return pw.Padding(
+      padding: const pw.EdgeInsets.fromLTRB(22, 0, 22, 0),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          secTitulo('9', 'DIAGRAMA UNIFILAR'),
+
+          // Borda externa tracejada (estilo do modelo de referência)
+          pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: _pNavy, width: 0.8),
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+
+                // ── Cabeçalho do diagrama: alimentação + DG ────────────
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: const pw.BoxDecoration(
+                    color: _pNavy,
+                    borderRadius: pw.BorderRadius.only(
+                      topLeft:  pw.Radius.circular(3),
+                      topRight: pw.Radius.circular(3),
+                    ),
+                  ),
+                  child: pw.Row(
+                    children: [
+                      pw.Text('DIAGRAMA UNIFILAR — ',
+                        style: pw.TextStyle(fontSize: 8, color: _pWhite, fontWeight: pw.FontWeight.bold)),
+                      pw.Text(projeto.nome,
+                        style: pw.TextStyle(fontSize: 8, color: _pOrange, fontWeight: pw.FontWeight.bold),
+                        overflow: pw.TextOverflow.clip),
+                    ],
+                  ),
+                ),
+
+                // ── Bloco de alimentação principal ─────────────────────
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 0),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      // Coluna esquerda: "VEM DA..." + DISJUNTOR GERAL
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          // Rótulo alimentação
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                            decoration: pw.BoxDecoration(
+                              border: pw.Border.all(color: _pGrey4, width: 0.5),
+                              borderRadius: pw.BorderRadius.circular(3),
+                              color: _pGrey50,
+                            ),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text('ALIMENTACAO PRINCIPAL',
+                                  style: pw.TextStyle(fontSize: 5.5, color: _pGrey6, fontWeight: pw.FontWeight.bold)),
+                                pw.SizedBox(height: 2),
+                                pw.Row(children: [
+                                  pw.Text('COBRE  ', style: pw.TextStyle(fontSize: 6, color: _pNavy, fontWeight: pw.FontWeight.bold)),
+                                  pw.Text('${djPolos}x#$bitolaAlim mm²',
+                                    style: pw.TextStyle(fontSize: 6.5, color: _pBlack, fontWeight: pw.FontWeight.bold)),
+                                ]),
+                                pw.Text('(${kvaTotal.toStringAsFixed(2)} kVA  —  $tensaoSist V)',
+                                  style: const pw.TextStyle(fontSize: 6, color: _pGrey6)),
+                              ],
+                            ),
+                          ),
+                          pw.SizedBox(height: 6),
+                          // Linha de chegada (vertical)
+                          pw.Container(
+                            margin: const pw.EdgeInsets.only(left: 20),
+                            width: 1.5, height: 12, color: _pNavy,
+                          ),
+                          // Disjuntor geral
+                          pw.Container(
+                            padding: const pw.EdgeInsets.all(6),
+                            decoration: pw.BoxDecoration(
+                              border: pw.Border.all(color: _pNavy, width: 1.2),
+                              borderRadius: pw.BorderRadius.circular(3),
+                              color: const PdfColor(0.85, 0.90, 1.0),
+                            ),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text('DISJUNTOR GERAL',
+                                  style: pw.TextStyle(fontSize: 6, color: _pNavy, fontWeight: pw.FontWeight.bold)),
+                                pw.SizedBox(height: 2),
+                                pw.Text('${djPolos}P  x  ${djGeral}A (C)',
+                                  style: pw.TextStyle(fontSize: 8, color: _pNavy, fontWeight: pw.FontWeight.bold)),
+                                pw.Text('Icc: ${resultado.capacidadeInterrupcao.toStringAsFixed(1)} kA',
+                                  style: const pw.TextStyle(fontSize: 6, color: _pGrey6)),
+                                pw.Text('Util: ${resultado.utilizacaoDisjuntor.toStringAsFixed(1)}%',
+                                  style: const pw.TextStyle(fontSize: 6, color: _pGrey6)),
+                              ],
+                            ),
+                          ),
+                          // Linha de saída (vertical)
+                          pw.Container(
+                            margin: const pw.EdgeInsets.only(left: 20),
+                            width: 1.5, height: 12, color: _pNavy,
+                          ),
+                          // Símbolo de aterramento
+                          pw.Container(
+                            margin: const pw.EdgeInsets.only(left: 12),
+                            child: pw.CustomPaint(painter: (canvas, size) {
+                              canvas.setStrokeColor(_pNavy);
+                              canvas.setLineWidth(1.2);
+                              // Linhas horizontais decrescentes (símbolo terra)
+                              canvas.moveTo(0,  0); canvas.lineTo(16, 0); canvas.strokePath();
+                              canvas.moveTo(3,  4); canvas.lineTo(13, 4); canvas.strokePath();
+                              canvas.moveTo(6,  8); canvas.lineTo(10, 8); canvas.strokePath();
+                            }, size: const PdfPoint(16, 10)),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text('  TN-S', style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                        ],
+                      ),
+                      pw.SizedBox(width: 16),
+
+                      // Divisor vertical (barramento principal)
+                      pw.Container(width: 2, color: _pNavy,
+                        margin: const pw.EdgeInsets.only(top: 0, bottom: 0)),
+                      pw.SizedBox(width: 10),
+
+                      // Coluna direita: circuitos
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            // Cabeçalho das colunas
+                            pw.Container(
+                              padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+                              decoration: const pw.BoxDecoration(
+                                border: pw.Border(bottom: pw.BorderSide(color: _pGrey4, width: 0.5)),
+                              ),
+                              child: pw.Row(children: [
+                                pw.SizedBox(width: 32,  child: pw.Text('Fases',  style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                                pw.SizedBox(width: 20,  child: pw.Text('Disj.',  style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                                pw.SizedBox(width: 2),
+                                pw.SizedBox(width: 36,  child: pw.Text('A/Curva', style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                                pw.SizedBox(width: 24),
+                                pw.SizedBox(width: 40,  child: pw.Text('Bitola', style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                                pw.SizedBox(width: 48,  child: pw.Text('Pot.',   style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                                pw.Expanded(           child: pw.Text('Carga',  style: const pw.TextStyle(fontSize: 6, color: _pGrey6))),
+                              ]),
+                            ),
+                            // Linhas de circuito
+                            if (cargas.isEmpty)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(12),
+                                child: pw.Text('Nenhuma carga cadastrada.',
+                                  style: const pw.TextStyle(fontSize: 7, color: _pGrey6)),
+                              )
+                            else
+                              ...cargas.asMap().entries.map((e) => linhaCircuito(e.key, e.value)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                pw.SizedBox(height: 6),
+
+                // ── Rodapé do diagrama (legenda + info projeto) ─────────
+                pw.Container(
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(top: pw.BorderSide(color: _pNavy, width: 0.8)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      // Logo / título
+                      pw.Container(
+                        width: 90,
+                        padding: const pw.EdgeInsets.all(8),
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(right: pw.BorderSide(color: _pNavy, width: 0.5)),
+                        ),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('QUADRO MASTER',
+                              style: pw.TextStyle(fontSize: 7, color: _pNavy, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('ABNT NBR 5410',
+                              style: pw.TextStyle(fontSize: 6, color: _pOrange)),
+                            pw.SizedBox(height: 4),
+                            // Legenda símbolos
+                            pw.Text('LEGENDA:',
+                              style: pw.TextStyle(fontSize: 5.5, color: _pGrey6, fontWeight: pw.FontWeight.bold)),
+                            pw.SizedBox(height: 2),
+                            pw.Text('[  ] Disjuntor',    style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                            pw.Text('DR  Dif. Residual', style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                            pw.Text('#   Bitola cabo',   style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                            pw.Text('(C) Curva tipo C',  style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                            pw.Text('(D) Curva tipo D',  style: const pw.TextStyle(fontSize: 5.5, color: _pGrey6)),
+                          ],
+                        ),
+                      ),
+                      // Tabela de informações do projeto
+                      pw.Expanded(
+                        child: pw.Table(
+                          border: pw.TableBorder(
+                            horizontalInside: const pw.BorderSide(color: _pGrey4, width: 0.3),
+                            verticalInside:   const pw.BorderSide(color: _pGrey4, width: 0.3),
+                          ),
+                          columnWidths: const {
+                            0: pw.FlexColumnWidth(2),
+                            1: pw.FlexColumnWidth(3),
+                            2: pw.FlexColumnWidth(2),
+                            3: pw.FlexColumnWidth(2),
+                          },
+                          children: [
+                            pw.TableRow(
+                              decoration: const pw.BoxDecoration(color: _pNavy),
+                              children: [
+                                _tblDiagHdr('INFORMACOES DO PROJETO'),
+                                _tblDiagHdr(''),
+                                _tblDiagHdr('DATA'),
+                                _tblDiagHdr('PAGINA'),
+                              ],
+                            ),
+                            pw.TableRow(children: [
+                              _tblDiagCell('Nome:'),
+                              _tblDiagCell(projeto.nome, bold: true),
+                              _tblDiagCell(DateFormat('dd/MM/yyyy').format(DateTime.now()), bold: true),
+                              _tblDiagCell('1/1', bold: true),
+                            ]),
+                            pw.TableRow(children: [
+                              _tblDiagCell('Cliente:'),
+                              _tblDiagCell(projeto.contratante.razaoSocial.isNotEmpty
+                                  ? projeto.contratante.razaoSocial : '—'),
+                              _tblDiagCell('REVISAO'),
+                              _tblDiagCell('No. DOC'),
+                            ]),
+                            pw.TableRow(children: [
+                              _tblDiagCell('Tensao:'),
+                              _tblDiagCell('${tensaoSist}V  ${djPolos == 3 ? "Trifasico" : djPolos == 2 ? "Bifasico" : "Monofasico"}'),
+                              _tblDiagCell('Rev. 00', bold: true),
+                              _tblDiagCell(
+                                'RT-${DateFormat("yyyyMM").format(DateTime.now())}-001',
+                                bold: true,
+                              ),
+                            ]),
+                            pw.TableRow(children: [
+                              _tblDiagCell('CNPJ:'),
+                              _tblDiagCell(projeto.contratante.documento.isNotEmpty
+                                  ? projeto.contratante.documento : '—'),
+                              _tblDiagCell('No. CIRCUITOS'),
+                              _tblDiagCell('${cargas.length}', bold: true),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+
+  // Helpers da tabela rodapé do diagrama
+  static pw.Widget _tblDiagHdr(String t) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    child: pw.Text(t,
+      style: pw.TextStyle(fontSize: 5.5, color: _pWhite, fontWeight: pw.FontWeight.bold),
+      overflow: pw.TextOverflow.clip),
+  );
+  static pw.Widget _tblDiagCell(String t, {bool bold = false}) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    child: pw.Text(t,
+      style: pw.TextStyle(
+        fontSize: 5.5,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: _pBlack,
+      ),
+      overflow: pw.TextOverflow.clip),
+  );
 
   // ══════════════════════════════════════════════════════════════
   // TABELA DE CARGAS PDF — separada para suportar auto-paginação
