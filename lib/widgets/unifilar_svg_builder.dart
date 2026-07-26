@@ -125,6 +125,28 @@ class UnifilarSvgBuilder {
   // y do polo = y_fio + 0.22 (fio_ent_y = fio_y + 0.22 no PDF)
   static const double poloBarrR = 1.545;
 
+  // ─── Traços de identificação de cabo (nº de condutores) sobre o fio de saída
+  // Medido do PDF, à esquerda da bitola (#X,Xmm²):
+  //   Trifásico (3 polos): 3 traços retos, x=273.38, 277.47, 281.55
+  //   Mono/Bifásico (1-2 polos): traço c/ tampa (cap) em x=268.88 + traço reto em x=273.38
+  //   Ambos: y de fy-4.71 a fy+6.10 (altura=10.81, cruza o fio)
+  static const double caboTraco1X = 273.38;
+  static const double caboTraco2X = 277.47;
+  static const double caboTraco3X = 281.55;
+  static const double caboTracoCapX = 268.88;   // traço c/ tampa (mono/bi)
+  static const double caboTracoYTop = 4.71;     // acima do fio
+  static const double caboTracoYBot = 6.10;     // abaixo do fio
+  static const double caboTracoCapW = 3.04;     // largura da tampa horizontal
+
+  // Traço extra em "T" (tampa + traço curto) — aparece quando o circuito usa DR
+  // (indica a passagem do neutro pelo DR). Medido do PDF (circ. DR, fy=502.72):
+  //   tampa: x=285.18..288.85, y=fy-4.71
+  //   traço vertical: x=287.01, y=fy-4.71..fy+0.67
+  static const double caboTracoDrCapX0 = 285.18 - 273.38; // offset rel. caboTraco1X
+  static const double caboTracoDrCapX1 = 288.85 - 273.38;
+  static const double caboTracoDrVX    = 287.01 - 273.38;
+  static const double caboTracoDrYBot  = 0.67;  // abaixo do fio (bem curto)
+
   // ─── DR — retângulo diferencial residual
   // No PDF circ 13: rect ligeiramente à direita do fio saída
   // x=225.92 (fioSaiX0+14.21), y=496.4 (circ y=502.72 → dy=-6.32 → cy-6.32)
@@ -140,6 +162,35 @@ class UnifilarSvgBuilder {
   //         traço 3: x=241.21..245.40, y=584.56
   static const double aterX    = 243.31;
   // aterY0 = barrY1 calculado
+
+  // ─── Entrada geral do quadro (disjuntor 63A + DPS) — medidas fixas do PDF
+  // Fio: y=340.66 (independente da escala/qtd de circuitos)
+  static const double geralY = 340.66;
+  static const double geralDotStartCx = 56.25;   // ponto de origem (VEM DO)
+  static const double geralPole1Cx = 97.78;      // polo esq do disjuntor 63A
+  static const double geralPole2Cx = 114.85;     // polo dir do disjuntor 63A
+  static const double geralJuncaoDpsCx = 128.0;  // dot de derivação p/ DPS
+
+  // Traços de identificação do cabo geral "#10" (5 traços com tampa nas pontas)
+  static const List<double> geralTicksXs = [63.27, 66.82, 70.27, 74.13];
+  static const double geralTickCapEsqX0 = 60.16;
+  static const double geralTickCapEsqX1 = 63.19;
+  static const double geralTickCapDirX0 = 77.76;
+  static const double geralTickCapDirX1 = 81.43;
+  static const double geralTickShortX = 79.59;
+  static const double geralTickYTop = 5.26;   // acima de geralY
+  static const double geralTickYBot = 5.51;   // abaixo de geralY (traços longos)
+  static const double geralTickShortYBot = 0.10; // traço curto (quase não desce)
+
+  // Caixa DPS (retângulo branco + raio dentro)
+  static const double dpsBoxW = 15.35;
+  static const double dpsBoxH = 23.26;
+  static const double dpsTopYdelta = 41.61;    // geralY -> topo da caixa
+  static const double dpsBotYdelta = 64.87;    // geralY -> base da caixa
+  // Aterramento sob o DPS (traços decrescentes)
+  static const double dpsAterY1delta = 70.87;
+  static const double dpsAterY2delta = 72.68;
+  static const double dpsAterY3delta = 74.48;
 
   // ─── Rodapé / Bloco de Título
   static const double seloTopY   = 681.34;   // linha superior do bloco
@@ -239,29 +290,18 @@ class UnifilarSvgBuilder {
     // Potência total — acima da caixa, lado esquerdo
     final kva = d.potenciaTotalkVA.toStringAsFixed(2);
     buf.writeln(
-      '<text x="91" y="122" text-anchor="middle" '
+      '<text x="110" y="122" text-anchor="middle" '
       'font-size="8" font-weight="bold" fill="#000">'
       '(${_esc(kva)}KVA)</text>',
     );
 
-    // Cabo geral — texto horizontal, acima e à direita do barramento
+    // Cabo geral — texto vertical (rotacionado -90°), acompanhando o barramento
+    // No PDF: bbox x=149.36..157.64, y=130.33..188.21 (centro x=153.5, y=159.27)
     buf.writeln(
-      '<text x="${barrX + 4}" y="126" '
-      'font-size="7" fill="#000">'
+      '<text font-size="7" fill="#000" '
+      'transform="rotate(-90 153.5 159.27)" '
+      'x="153.5" y="159.27" text-anchor="middle">'
       'COBRE ${_esc(d.caboGeral.toStringAsFixed(0))} x 30mm</text>',
-    );
-
-    // Corrente geral e disjuntor geral — à esquerda do barramento
-    final corrStr = d.correnteGeral.toStringAsFixed(0);
-    buf.writeln(
-      '<text x="${barrX - 5}" y="319" '
-      'text-anchor="end" font-size="8" font-weight="bold" fill="#000">'
-      '${_esc(corrStr)}A</text>',
-    );
-    buf.writeln(
-      '<text x="${barrX - 5}" y="330" '
-      'text-anchor="end" font-size="7" fill="#000">'
-      '#${_fmtBitola(d.caboGeral)}</text>',
     );
 
     // VEM DO — texto vertical à esquerda (rotacionado -90°)
@@ -272,6 +312,158 @@ class UnifilarSvgBuilder {
       'transform="rotate(-90 50 395)" '
       'x="50" y="395" text-anchor="middle">$vemDo</text>',
     );
+
+    // Entrada geral: disjuntor 63A (gráfico) + traços "#10" + DPS
+    _buildEntradaGeral(buf, d);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Entrada geral do quadro — fiel ao PDF:
+  //   ponto de origem (dot) → traços "#10" → disjuntor geral (arco+polos) →
+  //   dot de derivação → [ramo p/ DPS] → dot de derivação → barramento
+  // ─────────────────────────────────────────────────────────────────────────────
+  void _buildEntradaGeral(StringBuffer buf, DiagramaUnifilar d) {
+    const double gy = geralY;
+    const s = 'stroke="#000" stroke-width="0.46"';
+
+    // a) Dot de origem (início do alimentador)
+    buf.writeln(
+      '<circle cx="${_f(geralDotStartCx)}" cy="$gy" r="$poloR" '
+      'fill="#000" stroke="#000" stroke-width="0.46"/>',
+    );
+
+    // b) Fio: dot origem → polo esq do disjuntor (passa pelos traços "#10")
+    buf.writeln(
+      '<line x1="${_f(geralDotStartCx + poloR)}" y1="$gy" '
+      'x2="${_f(geralPole1Cx - poloR)}" y2="$gy" $s/>',
+    );
+
+    // c) Traços de identificação do cabo geral "#10"
+    //    cap esq + 4 traços retos + cap dir + traço curto (T)
+    buf.writeln(
+      '<line x1="${_f(geralTickCapEsqX0)}" y1="${_f(gy - geralTickYTop)}" '
+      'x2="${_f(geralTickCapEsqX1)}" y2="${_f(gy - geralTickYTop)}" $s/>',
+    );
+    for (final tx in geralTicksXs) {
+      buf.writeln(
+        '<line x1="${_f(tx)}" y1="${_f(gy - geralTickYTop)}" '
+        'x2="${_f(tx)}" y2="${_f(gy + geralTickYBot)}" $s/>',
+      );
+    }
+    buf.writeln(
+      '<line x1="${_f(geralTickCapDirX0)}" y1="${_f(gy - geralTickYTop)}" '
+      'x2="${_f(geralTickCapDirX1)}" y2="${_f(gy - geralTickYTop)}" $s/>',
+    );
+    buf.writeln(
+      '<line x1="${_f(geralTickShortX)}" y1="${_f(gy - geralTickYTop)}" '
+      'x2="${_f(geralTickShortX)}" y2="${_f(gy + geralTickShortYBot)}" $s/>',
+    );
+
+    // d) Polo esquerdo do disjuntor geral (círculo aberto)
+    buf.writeln(
+      '<circle cx="${_f(geralPole1Cx)}" cy="$gy" r="$poloR" '
+      'fill="white" stroke="#000" stroke-width="0.46"/>',
+    );
+    // e) Polo direito do disjuntor geral
+    buf.writeln(
+      '<circle cx="${_f(geralPole2Cx)}" cy="$gy" r="$poloR" '
+      'fill="white" stroke="#000" stroke-width="0.46"/>',
+    );
+
+    // f) Arco do disjuntor geral (mesma forma proporcional do disjuntor de circuito,
+    //    reposicionado entre os polos geralPole1Cx..geralPole2Cx)
+    final double aX0 = geralPole1Cx + 0.84;   final double aY0 = gy - 3.06;
+    final double aC1 = geralPole1Cx + 3.04;   final double aCy1 = gy - 6.85;
+    final double aC2 = geralPole1Cx + 8.28;   final double aCy2 = gy - 8.33;
+    final double aX1 = geralPole1Cx + 12.52;  final double aY1 = gy - 6.37;
+    final double aC3 = geralPole1Cx + 14.16;  final double aCy3 = gy - 5.61;
+    final double aC4 = geralPole1Cx + 15.49;  final double aCy4 = gy - 4.40;
+    final double aX3 = geralPole1Cx + 16.31;  final double aY3 = gy - 2.92;
+    buf.writeln(
+      '<path d="M ${_f(aX0)} ${_f(aY0)} '
+      'C ${_f(aC1)} ${_f(aCy1)}, ${_f(aC2)} ${_f(aCy2)}, ${_f(aX1)} ${_f(aY1)} '
+      'C ${_f(aC3)} ${_f(aCy3)}, ${_f(aC4)} ${_f(aCy4)}, ${_f(aX3)} ${_f(aY3)}" '
+      'stroke="#000" stroke-width="0.46" fill="none"/>',
+    );
+
+    // g) Rótulo "63A" acima do arco (baseline medido: gy - 9.79)
+    final corrGeralStr = d.correnteGeral.toStringAsFixed(0);
+    buf.writeln(
+      '<text x="${_f((geralPole1Cx + geralPole2Cx) / 2)}" y="${_f(gy - 9.79)}" '
+      'text-anchor="middle" font-size="7" font-weight="bold" fill="#000">'
+      '${_esc(corrGeralStr)}A</text>',
+    );
+    // Rótulo "#10" acima dos traços (baseline medido: gy - 7.05)
+    buf.writeln(
+      '<text x="${_f((geralTickCapEsqX0 + geralTickShortX) / 2)}" y="${_f(gy - 7.05)}" '
+      'text-anchor="middle" font-size="7" fill="#000">'
+      '#${_fmtBitola(d.caboGeral)}</text>',
+    );
+
+    // h) Fio: polo dir → dot de derivação (para o barramento, passando pelo ramo DPS)
+    buf.writeln(
+      '<line x1="${_f(geralPole2Cx + poloR)}" y1="$gy" '
+      'x2="${_f(barrX - poloBarrR)}" y2="$gy" $s/>',
+    );
+
+    // i) Dot de derivação para o ramo do DPS
+    buf.writeln(
+      '<circle cx="${_f(geralJuncaoDpsCx)}" cy="$gy" r="$poloR" '
+      'fill="#000" stroke="#000" stroke-width="0.46"/>',
+    );
+
+    // j) Ramo vertical até a caixa do DPS
+    if (d.temDPS) {
+      final double dpsTopY = gy + dpsTopYdelta;
+      final double dpsBotY = gy + dpsBotYdelta;
+      buf.writeln(
+        '<line x1="${_f(geralJuncaoDpsCx)}" y1="$gy" '
+        'x2="${_f(geralJuncaoDpsCx)}" y2="${_f(dpsTopY)}" $s/>',
+      );
+
+      // k) Caixa do DPS (retângulo branco)
+      buf.writeln(
+        '<rect x="${_f(geralJuncaoDpsCx - dpsBoxW / 2)}" y="${_f(dpsTopY)}" '
+        'width="${_f(dpsBoxW)}" height="${_f(dpsBotY - dpsTopY)}" '
+        'fill="white" stroke="#000" stroke-width="0.46"/>',
+      );
+
+      // l) Raio (lightning bolt) dentro da caixa, preenchido em preto
+      final double bx = geralJuncaoDpsCx;
+      final double by = gy;
+      buf.writeln(
+        '<path d="'
+        'M ${_f(bx + 0.5)} ${_f(by + 45.47)} '
+        'L ${_f(bx + 3.78)} ${_f(by + 45.80)} '
+        'L ${_f(bx + 3.12)} ${_f(by + 52.57)} '
+        'C ${_f(bx + 2.49)} ${_f(by + 52.92)}, ${_f(bx + 1.99)} ${_f(by + 52.17)}, ${_f(bx + 1.36)} ${_f(by + 52.52)} '
+        'L ${_f(bx - 1.27)} ${_f(by + 63.50)} '
+        'L ${_f(bx - 2.94)} ${_f(by + 52.16)} '
+        'L ${_f(bx - 1.01)} ${_f(by + 52.60)} '
+        'L ${_f(bx - 1.75)} ${_f(by + 45.37)} '
+        'Z" fill="#000" stroke="none"/>',
+      );
+
+      // m) Fio abaixo da caixa até o aterramento
+      buf.writeln(
+        '<line x1="${_f(geralJuncaoDpsCx)}" y1="${_f(dpsBotY)}" '
+        'x2="${_f(geralJuncaoDpsCx)}" y2="${_f(gy + dpsAterY1delta)}" $s/>',
+      );
+
+      // n) Aterramento do DPS (traços decrescentes)
+      buf.writeln(
+        '<line x1="${_f(geralJuncaoDpsCx - 6.25)}" y1="${_f(gy + dpsAterY1delta)}" '
+        'x2="${_f(geralJuncaoDpsCx + 6.25)}" y2="${_f(gy + dpsAterY1delta)}" $s/>',
+      );
+      buf.writeln(
+        '<line x1="${_f(geralJuncaoDpsCx - 3.55)}" y1="${_f(gy + dpsAterY2delta)}" '
+        'x2="${_f(geralJuncaoDpsCx + 3.55)}" y2="${_f(gy + dpsAterY2delta)}" $s/>',
+      );
+      buf.writeln(
+        '<line x1="${_f(geralJuncaoDpsCx - 1.77)}" y1="${_f(gy + dpsAterY3delta)}" '
+        'x2="${_f(geralJuncaoDpsCx + 1.77)}" y2="${_f(gy + dpsAterY3delta)}" $s/>',
+      );
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -398,6 +590,11 @@ class UnifilarSvgBuilder {
       );
     }
 
+    // h2) Traços de identificação de cabo (nº de condutores) sobre o fio de saída
+    // Fiel ao PDF: trifásico = 3 traços retos; mono/bifásico = 1 traço c/ tampa + 1 traço reto
+    // Se o circuito usa DR, adiciona traço extra em "T" (indica passagem do neutro pelo DR)
+    _buildTracosCabo(buf, fy, c.fase.polos, c.utilizaDR);
+
     // i) Bitola (#mm²) acima do fio de saída
     // No PDF: x=267.8, y=circ_y - 8.0
     buf.writeln(
@@ -445,6 +642,54 @@ class UnifilarSvgBuilder {
       '<text x="${_f(descX)}" y="${_f(fy + descYdelta)}" '
       'font-size="7" fill="#000">$desc</text>',
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Traços de identificação do cabo (nº de condutores) — sobre o fio de saída
+  // Fiel ao PDF:
+  //   Trifásico (3 polos): 3 traços retos verticais em x=273.38/277.47/281.55
+  //   Mono/Bifásico (1-2 polos): 1 traço c/ tampa horizontal no topo (x=268.88)
+  //                              + 1 traço reto (x=273.38)
+  // ─────────────────────────────────────────────────────────────────────────────
+  void _buildTracosCabo(StringBuffer buf, double fy, int polos, bool utilizaDR) {
+    final double yTop = fy - caboTracoYTop;
+    final double yBot = fy + caboTracoYBot;
+    const s = 'stroke="#000" stroke-width="0.46"';
+
+    if (polos >= 3) {
+      // 3 traços retos
+      for (final tx in [caboTraco1X, caboTraco2X, caboTraco3X]) {
+        buf.writeln(
+          '<line x1="${_f(tx)}" y1="${_f(yTop)}" x2="${_f(tx)}" y2="${_f(yBot)}" $s/>',
+        );
+      }
+    } else {
+      // traço com tampa (cap) + traço reto
+      buf.writeln(
+        '<line x1="${_f(caboTracoCapX)}" y1="${_f(yTop)}" x2="${_f(caboTracoCapX)}" y2="${_f(yBot)}" $s/>',
+      );
+      buf.writeln(
+        '<line x1="${_f(caboTracoCapX - caboTracoCapW / 2)}" y1="${_f(yTop)}" '
+        'x2="${_f(caboTracoCapX + caboTracoCapW / 2)}" y2="${_f(yTop)}" $s/>',
+      );
+      buf.writeln(
+        '<line x1="${_f(caboTraco1X)}" y1="${_f(yTop)}" x2="${_f(caboTraco1X)}" y2="${_f(yBot)}" $s/>',
+      );
+    }
+
+    // Traço extra em "T" (tampa + traço curto) — indica neutro passando pelo DR
+    if (utilizaDR) {
+      final double drCapX0 = caboTraco1X + caboTracoDrCapX0;
+      final double drCapX1 = caboTraco1X + caboTracoDrCapX1;
+      final double drVX = caboTraco1X + caboTracoDrVX;
+      final double drYBot = fy + caboTracoDrYBot;
+      buf.writeln(
+        '<line x1="${_f(drCapX0)}" y1="${_f(yTop)}" x2="${_f(drCapX1)}" y2="${_f(yTop)}" $s/>',
+      );
+      buf.writeln(
+        '<line x1="${_f(drVX)}" y1="${_f(yTop)}" x2="${_f(drVX)}" y2="${_f(drYBot)}" $s/>',
+      );
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -531,21 +776,19 @@ class UnifilarSvgBuilder {
 
     // ── COL 2: INFO DO CLIENTE (com sub-colunas) ──
     // Rótulos na sub-col esquerda, valores na sub-col direita
-    // No PDF: y=709.54 (topo corpo), 6 linhas de info espaçadas ≈11.3pt
+    // No PDF: y=709.54 (topo corpo), 5 linhas de info espaçadas ≈13.3pt
     double iy = seloTitY + 12;
     final double rotX = seloX2 + 3;
     final double valX = seloX2sub + 3;
     _seloLinha(buf, rotX, valX, iy, 'NOME:', _esc(d.clienteNome));
-    iy += 11;
-    _seloLinha(buf, rotX, valX, iy, 'No.DOC:', _esc(d.numeroDocumento));
-    iy += 11;
+    iy += 13.3;
     _seloLinha(buf, rotX, valX, iy, 'CNPJ/CPF:', _esc(d.clienteDocumento));
-    iy += 11;
+    iy += 13.3;
     _seloLinha(buf, rotX, valX, iy, 'ENDERECO:', _esc(d.clienteEndereco.length > 35
         ? '${d.clienteEndereco.substring(0, 35)}...' : d.clienteEndereco));
-    iy += 11;
-    _seloLinha(buf, rotX, valX, iy, 'FONE:', _esc(d.clienteTelefone));
-    iy += 11;
+    iy += 13.3;
+    _seloLinha(buf, rotX, valX, iy, 'TELEFONE:', _esc(d.clienteTelefone));
+    iy += 13.3;
     _seloLinha(buf, rotX, valX, iy, 'E-MAIL:', _esc(d.clienteEmail));
 
     // ── COL 3: DATA | PÁGINA ──
@@ -576,7 +819,7 @@ class UnifilarSvgBuilder {
     // ── COL 4: REVISÃO ──
     final double revMidX = (seloX4 + seloX5) / 2;
     buf.writeln('<text x="${_f(revMidX)}" y="${_f(seloTitY + 9)}" '
-        'text-anchor="middle" font-size="6" fill="#888">REV</text>');
+        'text-anchor="middle" font-size="6" fill="#888">REVISAO</text>');
     buf.writeln('<text x="${_f(revMidX)}" y="${_f(seloTitY + 35)}" '
         'text-anchor="middle" font-size="22" font-weight="bold" fill="#000">'
         '${d.revisao}</text>');

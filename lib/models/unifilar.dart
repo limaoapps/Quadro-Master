@@ -11,10 +11,10 @@ enum FaseUnifilar {
   r('R', 1),
   s('S', 1),
   t('T', 1),
-  rs('R+S', 2),
-  rt('R+T', 2),
-  st('S+T', 2),
-  rst('R+S+T', 3);
+  rs('R/S', 2),
+  rt('R/T', 2),
+  st('S/T', 2),
+  rst('R/S/T', 3);
 
   final String label;
   final int polos; // número de polos do disjuntor
