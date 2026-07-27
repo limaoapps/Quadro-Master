@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'providers/app_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/historico_screen.dart';
+import 'services/admob_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +19,8 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+  // Inicializa o Google Mobile Ads SDK (apenas Android; sem suporte na Web).
+  await AdMobService.initialize();
   runApp(const QuadroMasterApp());
 }
 
