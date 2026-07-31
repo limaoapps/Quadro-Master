@@ -53,21 +53,38 @@ class AdMobService {
   AdMobService._();
 
   static bool _initialized = false;
+  static Future<void>? _initFuture;
 
   /// Indica se o SDK de anúncios está disponível na plataforma atual.
   static bool get isSupported => !kIsWeb;
 
-  static Future<void> initialize() async {
+  /// Indica se o SDK já terminou de inicializar com sucesso.
+  static bool get isInitialized => _initialized;
+
+  static Future<void> initialize() {
     if (!isSupported) {
       if (kDebugMode) {
         debugPrint('[AdMobService] Plataforma Web detectada — '
             'google_mobile_ads não é inicializado (sem suporte nativo).');
       }
-      return;
+      return Future.value();
     }
-    if (_initialized) return;
+    // Reutiliza a mesma Future caso initialize() seja chamado mais de uma
+    // vez (ex.: main.dart e, depois, um AdMobBanner aguardando o resultado).
+    return _initFuture ??= _doInitialize();
+  }
+
+  static Future<void> _doInitialize() async {
     try {
-      await MobileAds.instance.initialize();
+      // Timeout de segurança: a inicialização do SDK nativo nunca deve
+      // travar indefinidamente (ex.: rede instável, Google Play Services
+      // lento). Isso é chamado de forma não-bloqueante a partir do
+      // main.dart, mas o timeout evita que a chamada fique "pendurada"
+      // para sempre e garante um estado previsível.
+      await MobileAds.instance.initialize().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw Exception('Timeout ao inicializar Mobile Ads SDK'),
+      );
       _initialized = true;
       if (kDebugMode) {
         debugPrint('[AdMobService] Mobile Ads SDK inicializado com sucesso.');
@@ -76,6 +93,8 @@ class AdMobService {
       if (kDebugMode) {
         debugPrint('[AdMobService] Falha ao inicializar Mobile Ads SDK: $e');
       }
+      // Não relança a exceção: uma falha na inicialização do SDK de
+      // anúncios nunca deve propagar e afetar o restante do app.
     }
   }
 }
@@ -113,7 +132,13 @@ class _AdMobBannerState extends State<AdMobBanner> with WidgetsBindingObserver {
     super.initState();
     if (AdMobService.isSupported) {
       WidgetsBinding.instance.addObserver(this);
-      _loadBanner();
+      // Garante que o SDK do Mobile Ads esteja inicializado (ou já tenha
+      // falhado de forma tratada) antes de tentar carregar o banner. Isso
+      // não bloqueia a UI do app — apenas atrasa a exibição deste widget
+      // específico, que já começa como SizedBox.shrink() enquanto espera.
+      AdMobService.initialize().then((_) {
+        if (!_disposed && mounted) _loadBanner();
+      });
     }
   }
 
@@ -148,47 +173,69 @@ class _AdMobBannerState extends State<AdMobBanner> with WidgetsBindingObserver {
     if (_loading) return;
     _loading = true;
 
-    final ad = BannerAd(
-      adUnitId: widget.adUnitId,
-      size: widget.adSize,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          _loading = false;
-          // Ignora callback se o widget já foi destruído ou se este anúncio
-          // não é mais o anúncio "atual" (evita vazamento/estado incorreto).
-          if (_disposed || !mounted || ad != _bannerAd) {
+    // IMPORTANTE: qualquer exceção lançada aqui (ex.: plugin nativo ainda
+    // não pronto, canal de comunicação indisponível) NUNCA deve propagar
+    // para fora do widget — isso quebraria a árvore de widgets durante o
+    // initState/build e poderia deixar a tela em branco. Por isso todo o
+    // carregamento do anúncio é protegido por try/catch, e uma falha aqui
+    // simplesmente resulta em "sem anúncio" (SizedBox.shrink), nunca em
+    // crash da tela.
+    try {
+      final ad = BannerAd(
+        adUnitId: widget.adUnitId,
+        size: widget.adSize,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (ad) {
+            _loading = false;
+            // Ignora callback se o widget já foi destruído ou se este
+            // anúncio não é mais o anúncio "atual" (evita vazamento/estado
+            // incorreto).
+            if (_disposed || !mounted || ad != _bannerAd) {
+              ad.dispose();
+              return;
+            }
+            setState(() {
+              _isLoaded = true;
+              _failed = false;
+            });
+          },
+          onAdFailedToLoad: (ad, error) {
+            _loading = false;
+            if (kDebugMode) {
+              debugPrint('[AdMobBanner] Falha ao carregar anúncio: $error');
+            }
             ad.dispose();
-            return;
-          }
-          setState(() {
-            _isLoaded = true;
-            _failed = false;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          _loading = false;
-          if (kDebugMode) {
-            debugPrint('[AdMobBanner] Falha ao carregar anúncio: $error');
-          }
-          ad.dispose();
-          if (_disposed || !mounted) return;
-          if (ad == _bannerAd) _bannerAd = null;
-          setState(() {
-            _isLoaded = false;
-            _failed = true;
-          });
-        },
-        onAdOpened: (ad) {
-          if (kDebugMode) debugPrint('[AdMobBanner] Anúncio aberto.');
-        },
-        onAdClosed: (ad) {
-          if (kDebugMode) debugPrint('[AdMobBanner] Anúncio fechado.');
-        },
-      ),
-    );
-    _bannerAd = ad;
-    ad.load();
+            if (_disposed || !mounted) return;
+            if (ad == _bannerAd) _bannerAd = null;
+            setState(() {
+              _isLoaded = false;
+              _failed = true;
+            });
+          },
+          onAdOpened: (ad) {
+            if (kDebugMode) debugPrint('[AdMobBanner] Anúncio aberto.');
+          },
+          onAdClosed: (ad) {
+            if (kDebugMode) debugPrint('[AdMobBanner] Anúncio fechado.');
+          },
+        ),
+      );
+      _bannerAd = ad;
+      ad.load();
+    } catch (e) {
+      _loading = false;
+      _bannerAd = null;
+      if (kDebugMode) {
+        debugPrint('[AdMobBanner] Exceção ao criar/carregar anúncio: $e');
+      }
+      if (mounted) {
+        setState(() {
+          _isLoaded = false;
+          _failed = true;
+        });
+      }
+    }
   }
 
   @override

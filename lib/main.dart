@@ -19,9 +19,14 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  // Inicializa o Google Mobile Ads SDK (apenas Android; sem suporte na Web).
-  await AdMobService.initialize();
+  // IMPORTANTE: o app NUNCA deve esperar o AdMob inicializar para exibir a
+  // UI. Se a inicialização do SDK de anúncios travar/demorar (sem internet,
+  // Google Play Services indisponível, etc.), isso NÃO pode impedir o app
+  // de abrir — por isso não usamos `await` aqui e chamamos runApp() de
+  // imediato. Os anúncios simplesmente aparecem mais tarde, quando/se o SDK
+  // terminar de inicializar.
   runApp(const QuadroMasterApp());
+  AdMobService.initialize();
 }
 
 class QuadroMasterApp extends StatelessWidget {
