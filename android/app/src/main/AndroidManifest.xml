@@ -37,6 +37,23 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-8464114280669008~8698658769"/>
+
+        <!-- CRÍTICO: o SDK do Google Mobile Ads registra automaticamente um
+             ContentProvider nativo (MobileAdsInitProvider, initOrder=100) que
+             roda de forma SÍNCRONA na thread principal durante a inicialização
+             do processo Android — ANTES do Flutter/Dart começar a executar.
+             Se essa inicialização nativa travar/demorar (rede, Privacy
+             Sandbox/AdServices do Android 13+, etc.), o app fica parado nesse
+             ponto e NUNCA chega a desenhar a primeira tela (tela branca
+             permanente), independente de qualquer código Dart.
+             Estas duas flags oficiais do Google fazem essa inicialização
+             nativa ocorrer fora da thread principal, evitando o bloqueio: -->
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION"
+            android:value="true"/>
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
+            android:value="true"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

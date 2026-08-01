@@ -9,6 +9,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Carrega as credenciais de assinatura de release a partir de key.properties
+// (gerado junto com android/release-key.jks). Sem isso, o build de release
+// ficava assinado com a chave de DEBUG por engano.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.quadromaster.calc"
     compileSdk = flutter.compileSdkVersion
@@ -34,11 +43,27 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Usa o keystore de release (release-key.jks) quando disponível;
+            // cai para a assinatura de debug apenas se key.properties não
+            // existir (ex.: ambiente de desenvolvimento sem keystore gerado).
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
