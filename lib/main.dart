@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'providers/app_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/historico_screen.dart';
-import 'services/admob_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,14 +18,7 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  // IMPORTANTE: o app NUNCA deve esperar o AdMob inicializar para exibir a
-  // UI. Se a inicialização do SDK de anúncios travar/demorar (sem internet,
-  // Google Play Services indisponível, etc.), isso NÃO pode impedir o app
-  // de abrir — por isso não usamos `await` aqui e chamamos runApp() de
-  // imediato. Os anúncios simplesmente aparecem mais tarde, quando/se o SDK
-  // terminar de inicializar.
   runApp(const QuadroMasterApp());
-  AdMobService.initialize();
 }
 
 class QuadroMasterApp extends StatelessWidget {

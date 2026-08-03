@@ -10,7 +10,6 @@ import '../models/cliente.dart';
 import '../theme/app_theme.dart';
 import '../utils/masks.dart';
 import '../services/cep_service.dart';
-import '../services/admob_service.dart';
 import 'projeto_screen.dart';
 import 'perfil_screen.dart';
 import 'clientes_screen.dart';
@@ -221,17 +220,6 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
             backgroundColor: AppColors.primary,
             icon: const Icon(Icons.add, color: Colors.white),
             label: const Text('Novo Projeto', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-          ),
-          // Banner AdMob ("banner Qd") fixo no rodapé — não sobrepõe conteúdo
-          // nem o FloatingActionButton, seguindo boas práticas de UX do AdMob.
-          bottomNavigationBar: SafeArea(
-            top: false,
-            child: Container(
-              color: AppColors.background,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.only(top: 4),
-              child: const AdMobBanner(adUnitId: AdMobIds.bannerQd),
-            ),
           ),
         );
       },
