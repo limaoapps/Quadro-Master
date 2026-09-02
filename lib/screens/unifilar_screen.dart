@@ -85,6 +85,10 @@ class _UnifilarTabState extends State<UnifilarTab> {
       revisao: 0,
       vemDo: vemDo,
       correnteGeral: correnteFinal,
+      // Capacidade de ruptura do disjuntor geral — padrão NBR 5410: 10 kA é
+      // o valor usual para disjuntores de entrada em instalações residenciais/comerciais
+      capacidadeRupturaGeral: 10.0,
+      curvaGeral: CurvaDisjuntor.c,
       caboGeral: _sugerirCabo(correnteFinal),
       faseGeral: faseGeral,
       temDR: false,
@@ -133,12 +137,23 @@ class _UnifilarTabState extends State<UnifilarTab> {
     // Potência em VA
     final potenciaVA = cg.potenciaAparente;
 
+    // Capacidade de ruptura (kA) — padrão NBR 5410: circuitos de maior
+    // corrente exigem disjuntores com maior capacidade de interrupção.
+    // Correntes >= 20A: 6 kA. Demais: 3 kA (mínimo usual em instalações residenciais).
+    final capacidadeRuptura = corrente >= 20 ? 6.0 : 3.0;
+
+    // Corrente nominal do DR — padrão comercial: 25A para a maioria dos
+    // circuitos residenciais protegidos por DR (NBR 5410 / IEC 61008).
+    final correnteDR = 25.0;
+
     return CircuitoUnifilar(
       id: const Uuid().v4(),
       fase: fase,
       corrente: corrente,
       curva: CurvaDisjuntor.c,
+      capacidadeRuptura: capacidadeRuptura,
       utilizaDR: utilizaDR,
+      correnteDR: correnteDR,
       bitola: bitola,
       potencia: potenciaVA,
       unidadePotencia: UnidadePotencia.va,
@@ -437,6 +452,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
   late TextEditingController _revCtrl;
   late TextEditingController _vemDoCtrl;
   late TextEditingController _corrGeralCtrl;
+  late TextEditingController _capRupturaGeralCtrl;
   late TextEditingController _caboGeralCtrl;
   late TextEditingController _corrDRCtrl;
   late TextEditingController _dpskACtrl;
@@ -460,6 +476,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
     _revCtrl = TextEditingController(text: _d.revisao.toString());
     _vemDoCtrl = TextEditingController(text: _d.vemDo);
     _corrGeralCtrl = TextEditingController(text: _d.correnteGeral.toStringAsFixed(0));
+    _capRupturaGeralCtrl = TextEditingController(text: _d.capacidadeRupturaGeral.toString());
     _caboGeralCtrl = TextEditingController(text: _d.caboGeral.toStringAsFixed(0));
     _corrDRCtrl = TextEditingController(text: _d.correnteDR.toStringAsFixed(0));
     _dpskACtrl = TextEditingController(text: _d.dpskA.toStringAsFixed(0));
@@ -474,7 +491,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
     _tabCtrl.dispose();
     for (final c in [
       _nomeCtrl, _docCtrl, _dataCtrl, _revCtrl, _vemDoCtrl,
-      _corrGeralCtrl, _caboGeralCtrl, _corrDRCtrl, _dpskACtrl, _dpsVCtrl,
+      _corrGeralCtrl, _capRupturaGeralCtrl, _caboGeralCtrl, _corrDRCtrl, _dpskACtrl, _dpsVCtrl,
       _barramentoCtrl, _fdCtrl, _escalaCtrl,
     ]) {
       c.dispose();
@@ -495,6 +512,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
       revisao: int.tryParse(_revCtrl.text) ?? _d.revisao,
       vemDo: _vemDoCtrl.text,
       correnteGeral: corr,
+      capacidadeRupturaGeral: double.tryParse(_capRupturaGeralCtrl.text) ?? _d.capacidadeRupturaGeral,
       caboGeral: double.tryParse(_caboGeralCtrl.text) ?? _d.caboGeral,
       correnteDR: double.tryParse(_corrDRCtrl.text) ?? _d.correnteDR,
       dpskA: double.tryParse(_dpskACtrl.text) ?? _d.dpskA,
@@ -545,6 +563,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
                 revCtrl: _revCtrl,
                 vemDoCtrl: _vemDoCtrl,
                 corrGeralCtrl: _corrGeralCtrl,
+                capRupturaGeralCtrl: _capRupturaGeralCtrl,
                 caboGeralCtrl: _caboGeralCtrl,
                 corrDRCtrl: _corrDRCtrl,
                 dpskACtrl: _dpskACtrl,
@@ -630,7 +649,7 @@ class _FormularioUnifilarState extends State<_FormularioUnifilar>
 class _TabInfomacoes extends StatelessWidget {
   final DiagramaUnifilar d;
   final TextEditingController nomeCtrl, docCtrl, dataCtrl, revCtrl, vemDoCtrl;
-  final TextEditingController corrGeralCtrl, caboGeralCtrl, corrDRCtrl;
+  final TextEditingController corrGeralCtrl, capRupturaGeralCtrl, caboGeralCtrl, corrDRCtrl;
   final TextEditingController dpskACtrl, dpsVCtrl, barramentoCtrl, fdCtrl;
   final ValueChanged<DiagramaUnifilar> onChanged;
   final VoidCallback onSync;
@@ -644,6 +663,7 @@ class _TabInfomacoes extends StatelessWidget {
     required this.revCtrl,
     required this.vemDoCtrl,
     required this.corrGeralCtrl,
+    required this.capRupturaGeralCtrl,
     required this.caboGeralCtrl,
     required this.corrDRCtrl,
     required this.dpskACtrl,
@@ -685,6 +705,12 @@ class _TabInfomacoes extends StatelessWidget {
                   tipo: TextInputType.number),
               _field(caboGeralCtrl, 'Cabo (mm2)', Icons.cable, onSync,
                   tipo: TextInputType.number),
+            ]),
+            const SizedBox(height: 10),
+            _row([
+              _field(capRupturaGeralCtrl, 'Ruptura (kA)', Icons.flash_on, onSync,
+                  tipo: const TextInputType.numberWithOptions(decimal: true)),
+              _curvaGeralDropdown(),
             ]),
             const SizedBox(height: 10),
             _faseGeralRow(context),
@@ -810,6 +836,20 @@ class _TabInfomacoes extends StatelessWidget {
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+
+  Widget _curvaGeralDropdown() {
+    return DropdownButtonFormField<CurvaDisjuntor>(
+      initialValue: d.curvaGeral,
+      decoration: const InputDecoration(
+        labelText: 'Curva',
+        prefixIcon: Icon(Icons.show_chart),
+      ),
+      items: CurvaDisjuntor.values
+          .map((c) => DropdownMenuItem(value: c, child: Text('Curva ${c.label}')))
+          .toList(),
+      onChanged: (v) => onChanged(d.copyWith(curvaGeral: v!)),
     );
   }
 
@@ -1142,6 +1182,8 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
   late TextEditingController _codigoCtrl;
   late TextEditingController _descCtrl;
   late TextEditingController _corrCtrl;
+  late TextEditingController _capRupturaCtrl;
+  late TextEditingController _correnteDRCtrl;
   late TextEditingController _bitolaCtrl;
   late TextEditingController _potenciaCtrl;
   late TextEditingController _tensaoCtrl;
@@ -1157,6 +1199,8 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
     _codigoCtrl = TextEditingController(text: c.codigo);
     _descCtrl = TextEditingController(text: c.descricao);
     _corrCtrl = TextEditingController(text: c.corrente.toStringAsFixed(0));
+    _capRupturaCtrl = TextEditingController(text: c.capacidadeRuptura.toString());
+    _correnteDRCtrl = TextEditingController(text: c.correnteDR.toStringAsFixed(0));
     _bitolaCtrl = TextEditingController(text: c.bitola.toString());
     _potenciaCtrl = TextEditingController(text: c.potencia.toStringAsFixed(0));
     _tensaoCtrl = TextEditingController(text: c.tensao.toStringAsFixed(0));
@@ -1168,6 +1212,8 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
       _codigoCtrl,
       _descCtrl,
       _corrCtrl,
+      _capRupturaCtrl,
+      _correnteDRCtrl,
       _bitolaCtrl,
       _potenciaCtrl,
       _tensaoCtrl,
@@ -1193,7 +1239,9 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
       fase: _fase,
       corrente: double.tryParse(_corrCtrl.text) ?? 10,
       curva: _curva,
+      capacidadeRuptura: double.tryParse(_capRupturaCtrl.text) ?? 3.0,
       utilizaDR: _utilizaDR,
+      correnteDR: double.tryParse(_correnteDRCtrl.text) ?? 25.0,
       bitola: double.tryParse(_bitolaCtrl.text) ?? 2.5,
       potencia: double.tryParse(_potenciaCtrl.text) ?? 0,
       unidadePotencia: _unidade,
@@ -1332,6 +1380,20 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                 ]),
                 const SizedBox(height: 12),
 
+                // Capacidade de ruptura (kA) — obrigatória no padrão NBR 5410
+                TextFormField(
+                  controller: _capRupturaCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Capacidade de Ruptura',
+                    prefixIcon: Icon(Icons.flash_on),
+                    suffixText: 'kA',
+                    helperText: 'Padrao NBR 5410: 3kA (uso geral) ou 6kA (circuitos de maior corrente)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 // Bitola + Tensão
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(
@@ -1406,18 +1468,37 @@ class _CircuitoFormSheetState extends State<_CircuitoFormSheet> {
                           : Colors.grey[300]!,
                     ),
                   ),
-                  child: Row(children: [
-                    const Text('Utiliza DR neste circuito?',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    Switch(
-                      value: _utilizaDR,
-                      onChanged: (v) =>
-                          setState(() => _utilizaDR = v),
-                      activeThumbColor: AppColors.success,
-                    ),
-                  ]),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Text('Utiliza DR neste circuito?',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        Switch(
+                          value: _utilizaDR,
+                          onChanged: (v) =>
+                              setState(() => _utilizaDR = v),
+                          activeThumbColor: AppColors.success,
+                        ),
+                      ]),
+                      if (_utilizaDR) ...[
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _correnteDRCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Corrente Nominal do DR',
+                            prefixIcon: Icon(Icons.shield),
+                            suffixText: 'A',
+                            helperText: 'Padrao NBR 5410: 25A (comum) ou 40A',
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
               ]),

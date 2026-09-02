@@ -95,7 +95,9 @@ class CircuitoUnifilar {
   final FaseUnifilar fase;
   final double corrente;       // A
   final CurvaDisjuntor curva;
+  final double capacidadeRuptura; // kA — capacidade de interrupção do disjuntor
   final bool utilizaDR;
+  final double correnteDR;     // A — corrente nominal do DR (quando utilizaDR=true)
   final double bitola;         // mm²
   final double potencia;       // valor na unidade abaixo
   final UnidadePotencia unidadePotencia;
@@ -108,7 +110,9 @@ class CircuitoUnifilar {
     required this.fase,
     required this.corrente,
     required this.curva,
+    this.capacidadeRuptura = 3.0,
     required this.utilizaDR,
+    this.correnteDR = 25.0,
     required this.bitola,
     required this.potencia,
     required this.unidadePotencia,
@@ -125,7 +129,9 @@ class CircuitoUnifilar {
     'fase': fase.name,
     'corrente': corrente,
     'curva': curva.name,
+    'capacidadeRuptura': capacidadeRuptura,
     'utilizaDR': utilizaDR,
+    'correnteDR': correnteDR,
     'bitola': bitola,
     'potencia': potencia,
     'unidadePotencia': unidadePotencia.name,
@@ -141,7 +147,9 @@ class CircuitoUnifilar {
     corrente: (m['corrente'] as num?)?.toDouble() ?? 10,
     curva: CurvaDisjuntor.values.firstWhere(
       (e) => e.name == m['curva'], orElse: () => CurvaDisjuntor.c),
+    capacidadeRuptura: (m['capacidadeRuptura'] as num?)?.toDouble() ?? 3.0,
     utilizaDR: m['utilizaDR'] ?? false,
+    correnteDR: (m['correnteDR'] as num?)?.toDouble() ?? 25.0,
     bitola: (m['bitola'] as num?)?.toDouble() ?? 2.5,
     potencia: (m['potencia'] as num?)?.toDouble() ?? 0,
     unidadePotencia: UnidadePotencia.values.firstWhere(
@@ -153,7 +161,8 @@ class CircuitoUnifilar {
 
   CircuitoUnifilar copyWith({
     String? id, FaseUnifilar? fase, double? corrente, CurvaDisjuntor? curva,
-    bool? utilizaDR, double? bitola, double? potencia,
+    double? capacidadeRuptura,
+    bool? utilizaDR, double? correnteDR, double? bitola, double? potencia,
     UnidadePotencia? unidadePotencia, double? tensao,
     String? codigo, String? descricao,
   }) => CircuitoUnifilar(
@@ -161,7 +170,9 @@ class CircuitoUnifilar {
     fase: fase ?? this.fase,
     corrente: corrente ?? this.corrente,
     curva: curva ?? this.curva,
+    capacidadeRuptura: capacidadeRuptura ?? this.capacidadeRuptura,
     utilizaDR: utilizaDR ?? this.utilizaDR,
+    correnteDR: correnteDR ?? this.correnteDR,
     bitola: bitola ?? this.bitola,
     potencia: potencia ?? this.potencia,
     unidadePotencia: unidadePotencia ?? this.unidadePotencia,
@@ -184,6 +195,8 @@ class DiagramaUnifilar {
   // Entrada do quadro
   final String vemDo;             // origem da alimentação
   final double correnteGeral;     // A
+  final double capacidadeRupturaGeral; // kA — capacidade de ruptura do disjuntor geral
+  final CurvaDisjuntor curvaGeral;     // curva de disparo do disjuntor geral
   final double caboGeral;         // mm²
   final FaseUnifilar faseGeral;   // fases do alimentador geral
 
@@ -234,6 +247,8 @@ class DiagramaUnifilar {
     required this.revisao,
     required this.vemDo,
     required this.correnteGeral,
+    this.capacidadeRupturaGeral = 10.0,
+    this.curvaGeral = CurvaDisjuntor.c,
     required this.caboGeral,
     required this.faseGeral,
     required this.temDR,
@@ -282,6 +297,8 @@ class DiagramaUnifilar {
     'revisao': revisao,
     'vemDo': vemDo,
     'correnteGeral': correnteGeral,
+    'capacidadeRupturaGeral': capacidadeRupturaGeral,
+    'curvaGeral': curvaGeral.name,
     'caboGeral': caboGeral,
     'faseGeral': faseGeral.name,
     'temDR': temDR,
@@ -315,6 +332,9 @@ class DiagramaUnifilar {
     revisao: m['revisao'] ?? 0,
     vemDo: m['vemDo'] ?? '',
     correnteGeral: (m['correnteGeral'] as num?)?.toDouble() ?? 40,
+    capacidadeRupturaGeral: (m['capacidadeRupturaGeral'] as num?)?.toDouble() ?? 10.0,
+    curvaGeral: CurvaDisjuntor.values.firstWhere(
+      (e) => e.name == m['curvaGeral'], orElse: () => CurvaDisjuntor.c),
     caboGeral: (m['caboGeral'] as num?)?.toDouble() ?? 10,
     faseGeral: FaseUnifilar.values.firstWhere(
       (e) => e.name == m['faseGeral'], orElse: () => FaseUnifilar.rst),
@@ -354,7 +374,8 @@ class DiagramaUnifilar {
 
   DiagramaUnifilar copyWith({
     String? nomeProjeto, String? numeroDocumento, String? data, int? revisao,
-    String? vemDo, double? correnteGeral, double? caboGeral, FaseUnifilar? faseGeral,
+    String? vemDo, double? correnteGeral, double? capacidadeRupturaGeral,
+    CurvaDisjuntor? curvaGeral, double? caboGeral, FaseUnifilar? faseGeral,
     bool? temDR, double? correnteDR, bool? temDPS, double? dpskA, double? dpsV,
     String? barramento, bool? quadroAterrado, bool? exibirTerra, bool? exibirNeutro,
     UnidadePotencia? unidadeCircuito, UnidadePotencia? unidadeQuadro,
@@ -370,6 +391,8 @@ class DiagramaUnifilar {
     revisao: revisao ?? this.revisao,
     vemDo: vemDo ?? this.vemDo,
     correnteGeral: correnteGeral ?? this.correnteGeral,
+    capacidadeRupturaGeral: capacidadeRupturaGeral ?? this.capacidadeRupturaGeral,
+    curvaGeral: curvaGeral ?? this.curvaGeral,
     caboGeral: caboGeral ?? this.caboGeral,
     faseGeral: faseGeral ?? this.faseGeral,
     temDR: temDR ?? this.temDR,

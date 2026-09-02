@@ -111,6 +111,9 @@ class UnifilarSvgBuilder {
   static const double descX      = 373.0;
   static const double descYdelta = 2.5;  // abaixo do fio
 
+  // Número do circuito — coluna fixa próxima à borda direita (padrão NBR)
+  static const double numCircX = 545.0;
+
   // Corrente do disjuntor (acima do fio, entre polo esq e polo dir)
   static const double correnteX     = 189.3;
   static const double correnteYdelta = 8.0;  // acima do fio
@@ -260,7 +263,8 @@ class UnifilarSvgBuilder {
     // 6. Circuitos
     for (int i = 0; i < n; i++) {
       final cy = y0Circ + i * stepY * sc;
-      _buildCircuito(buf, d.circuitos[i], i + 1, cy, sc, d);
+      final numCirc = _extrairNumeroCircuito(d.circuitos[i].codigo, i + 1);
+      _buildCircuito(buf, d.circuitos[i], numCirc, cy, sc, d);
     }
 
     // 7. Rodapé
@@ -388,10 +392,24 @@ class UnifilarSvgBuilder {
 
     // g) Rótulo "63A" acima do arco (baseline medido: gy - 9.79)
     final corrGeralStr = d.correnteGeral.toStringAsFixed(0);
+    final double geralMidX = (geralPole1Cx + geralPole2Cx) / 2;
     buf.writeln(
-      '<text x="${_f((geralPole1Cx + geralPole2Cx) / 2)}" y="${_f(gy - 9.79)}" '
+      '<text x="${_f(geralMidX)}" y="${_f(gy - 9.79)}" '
       'text-anchor="middle" font-size="7" font-weight="bold" fill="#000">'
       '${_esc(corrGeralStr)}A</text>',
+    );
+    // Rótulo "N kA" — capacidade de ruptura do disjuntor geral (padrão NBR)
+    // Posicionado imediatamente abaixo do rótulo de corrente, à direita do arco
+    buf.writeln(
+      '<text x="${_f(geralMidX)}" y="${_f(gy + 9.5)}" '
+      'text-anchor="middle" font-size="6.5" fill="#000">'
+      '${_fmtBitola(d.capacidadeRupturaGeral)}kA</text>',
+    );
+    // Rótulo "Curva X" — curva de disparo do disjuntor geral (padrão NBR)
+    buf.writeln(
+      '<text x="${_f(geralMidX)}" y="${_f(gy + 17.5)}" '
+      'text-anchor="middle" font-size="6.5" fill="#000">'
+      'Curva ${d.curvaGeral.label}</text>',
     );
     // Rótulo "#10" acima dos traços (baseline medido: gy - 7.05)
     buf.writeln(
@@ -510,7 +528,7 @@ class UnifilarSvgBuilder {
     // b) Fio de entrada: barrX → polo esq do disjuntor
     final double poloEsqCx = (poloEsqX0 + poloEsqX1) / 2;  // 193.085
     buf.writeln(
-      '<line x1="${barrX + poloBarrR}" y1="$fy" x2="${poloEsqX0}" y2="$fy" '
+      '<line x1="${barrX + poloBarrR}" y1="$fy" x2="$poloEsqX0" y2="$fy" '
       'stroke="#000" stroke-width="0.46"/>',
     );
 
@@ -572,7 +590,7 @@ class UnifilarSvgBuilder {
 
     // g) Fio de saída: polo dir → fim
     buf.writeln(
-      '<line x1="${fioSaiX0}" y1="$fy" x2="${fioSaiX1}" y2="$fy" '
+      '<line x1="$fioSaiX0" y1="$fy" x2="$fioSaiX1" y2="$fy" '
       'stroke="#000" stroke-width="0.46"/>',
     );
 
@@ -587,6 +605,18 @@ class UnifilarSvgBuilder {
       buf.writeln(
         '<text x="${_f(drX + drW / 2)}" y="${_f(fy + 2.5)}" '
         'text-anchor="middle" font-size="6" fill="#000">DR</text>',
+      );
+      // Botão de teste do DR (pequeno traço no topo da caixa) — símbolo NBR
+      buf.writeln(
+        '<line x1="${_f(drX + drW / 2)}" y1="${_f(drY)}" '
+        'x2="${_f(drX + drW / 2)}" y2="${_f(drY - 2.2)}" '
+        'stroke="#000" stroke-width="0.46"/>',
+      );
+      // Rótulo "N A" — corrente nominal do DR, acima do botão de teste (padrão NBR)
+      buf.writeln(
+        '<text x="${_f(drX + drW / 2)}" y="${_f(drY - 3.5)}" '
+        'text-anchor="middle" font-size="6" fill="#000">'
+        '${_fmtBitola(c.correnteDR)}A</text>',
       );
     }
 
@@ -618,11 +648,26 @@ class UnifilarSvgBuilder {
 
     // k) Corrente do disjuntor (acima, entre os polos)
     // No PDF: x=189.3, y=circ_y - 8.0 (acima do fio de entrada)
-    final corrStr = '${c.corrente.toStringAsFixed(0)}A (${_esc(c.curva.label)})';
+    final corrStr = '${c.corrente.toStringAsFixed(0)}A';
     buf.writeln(
       '<text x="${_f(correnteX)}" y="${_f(fy - correnteYdelta)}" '
       'font-size="7" fill="#000">'
       '$corrStr</text>',
+    );
+
+    // k2) Capacidade de ruptura (kA) — abaixo do fio de entrada, alinhado com a corrente
+    // Padrão NBR: exibida junto ao disjuntor (ex.: "3 kA")
+    buf.writeln(
+      '<text x="${_f(correnteX)}" y="${_f(fy + 7.5)}" '
+      'font-size="6.2" fill="#000">'
+      '${_fmtBitola(c.capacidadeRuptura)}kA</text>',
+    );
+
+    // k3) Curva de disparo (B/C/D) — abaixo da capacidade de ruptura (padrão NBR)
+    buf.writeln(
+      '<text x="${_f(correnteX)}" y="${_f(fy + 13.5)}" '
+      'font-size="6.2" fill="#000">'
+      'Curva ${_esc(c.curva.label)}</text>',
     );
 
     // l) Potência (abaixo do fio de saída)
@@ -641,6 +686,14 @@ class UnifilarSvgBuilder {
     buf.writeln(
       '<text x="${_f(descX)}" y="${_f(fy + descYdelta)}" '
       'font-size="7" fill="#000">$desc</text>',
+    );
+
+    // n) Número do circuito — extremidade direita da folha (padrão NBR)
+    // Coluna fixa próxima à borda direita, após a descrição
+    buf.writeln(
+      '<text x="${_f(numCircX)}" y="${_f(fy + 2.5)}" '
+      'text-anchor="end" font-size="7.5" font-weight="bold" fill="#000">'
+      '$num</text>',
     );
   }
 
@@ -840,6 +893,20 @@ class UnifilarSvgBuilder {
   // ─────────────────────────────────────────────────────────────────────────────
   // Helpers
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /// Extrai o número do circuito a partir do campo `codigo` (padrão "CIRC. N"),
+  /// preservando lacunas de numeração (ex.: 1,3,4,5,7,8,9 — como no padrão NBR,
+  /// onde números pulados representam circuitos de outras fases já exibidos
+  /// em outra parte do quadro). Caso `codigo` não contenha um número válido,
+  /// usa o índice sequencial (fallback) para nunca deixar o rótulo vazio.
+  int _extrairNumeroCircuito(String codigo, int fallback) {
+    final match = RegExp(r'(\d+)').firstMatch(codigo);
+    if (match != null) {
+      final n = int.tryParse(match.group(1)!);
+      if (n != null) return n;
+    }
+    return fallback;
+  }
 
   /// Formata double com 2 casas decimais (sem zeros desnecessários para o SVG)
   String _f(double v) => v.toStringAsFixed(2);
