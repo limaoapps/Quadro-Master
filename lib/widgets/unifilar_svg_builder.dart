@@ -118,10 +118,14 @@ class UnifilarSvgBuilder {
   static const double correnteX     = 189.3;
   static const double correnteYdelta = 8.0;  // acima do fio
 
-  // Fase (à esquerda, acima do fio)
-  static const double faseX        = 170.3;
-  static const double faseXmono    = 177.3;  // para monofásico
-  static const double faseYdelta   = 3.8;    // acima do fio
+  // kA / Curva de disparo — à direita do polo direito do disjuntor
+  // (padrão NBR: alinhado com o fim do arco, NÃO junto ao rótulo de corrente)
+  static const double correnteKaX = 213.0;  // logo após poloDirX1 (211.71)
+
+  // Fase (à direita, abaixo do fio — empilhada sob a potência)
+  // Antes ficava à esquerda/acima (fiel a um layout incorreto); no padrão NBR
+  // de referência a fase aparece abaixo do fio, na mesma coluna da potência.
+  static const double faseYdeltaBelow = 15.5;  // abaixo do fio (sob a potência)
 
   // Polo do barramento (círculo preenchido no barramento)
   // centro em (barrX, fio_y) — medido: x=162.52..165.61 → centro=164.07
@@ -622,28 +626,18 @@ class UnifilarSvgBuilder {
 
     // h2) Traços de identificação de cabo (nº de condutores) sobre o fio de saída
     // Fiel ao PDF: trifásico = 3 traços retos; mono/bifásico = 1 traço c/ tampa + 1 traço reto
-    // Se o circuito usa DR, adiciona traço extra em "T" (indica passagem do neutro pelo DR)
-    _buildTracosCabo(buf, fy, c.fase.polos, c.utilizaDR);
+    // O traço extra em "T" (aterramento/neutro) é sempre desenhado, em todo circuito
+    // (confirmado por inspeção pixel-a-pixel da imagem de referência: presente em
+    // circuitos com e sem DR, mono e trifásicos).
+    _buildTracosCabo(buf, fy, c.fase.polos);
 
-    // i) Bitola (#mm²) acima do fio de saída
-    // No PDF: x=267.8, y=circ_y - 8.0
+    // i) Bitola — abaixo do fio de saída, sob os traços de identificação de cabo
+    // (confirmado por inspeção pixel-a-pixel da referência: aparece como número
+    // simples, ex. "1.5", "2.5", "4", sem prefixo "#" nem sufixo "mm²")
     buf.writeln(
-      '<text x="${_f(bitolaX)}" y="${_f(fy - bitolaYdelta)}" '
+      '<text x="${_f(bitolaX)}" y="${_f(fy + bitolaYdelta)}" '
       'text-anchor="middle" font-size="7" fill="#000">'
-      '#${_fmtBitola(c.bitola)}mm${_sup2()}</text>',
-    );
-
-    // j) Fase (acima, à esquerda)
-    // No PDF: R/S/T → x=170.3, y=circ_y-3.8
-    //         R solo → x=177.3 (um pouco mais para direita)
-    final bool mono = c.fase.polos == 1;
-    final double fX = mono ? faseXmono : faseX;
-    final String fLabel = _escFase(c.fase);
-    final String fColor = _faseColor(c.fase);
-    buf.writeln(
-      '<text x="${_f(fX)}" y="${_f(fy - faseYdelta)}" '
-      'font-size="7" font-weight="bold" fill="$fColor">'
-      '$fLabel</text>',
+      '${_fmtBitola(c.bitola)}</text>',
     );
 
     // k) Corrente do disjuntor (acima, entre os polos)
@@ -655,17 +649,17 @@ class UnifilarSvgBuilder {
       '$corrStr</text>',
     );
 
-    // k2) Capacidade de ruptura (kA) — abaixo do fio de entrada, alinhado com a corrente
-    // Padrão NBR: exibida junto ao disjuntor (ex.: "3 kA")
+    // k2) Capacidade de ruptura (kA) — à direita do polo direito do disjuntor
+    // Padrão NBR: "N kA" posicionado logo após o 2º polo, acima do fio
     buf.writeln(
-      '<text x="${_f(correnteX)}" y="${_f(fy + 7.5)}" '
+      '<text x="${_f(correnteKaX)}" y="${_f(fy - correnteYdelta)}" '
       'font-size="6.2" fill="#000">'
       '${_fmtBitola(c.capacidadeRuptura)}kA</text>',
     );
 
-    // k3) Curva de disparo (B/C/D) — abaixo da capacidade de ruptura (padrão NBR)
+    // k3) Curva de disparo (B/C/D) — mesma coluna do kA, abaixo do fio
     buf.writeln(
-      '<text x="${_f(correnteX)}" y="${_f(fy + 13.5)}" '
+      '<text x="${_f(correnteKaX)}" y="${_f(fy + 7.5)}" '
       'font-size="6.2" fill="#000">'
       'Curva ${_esc(c.curva.label)}</text>',
     );
@@ -678,6 +672,17 @@ class UnifilarSvgBuilder {
       '<text x="${_f(potX)}" y="${_f(fy + potenciaYdelta)}" '
       'text-anchor="middle" font-size="7" fill="#000">'
       '($potStr)</text>',
+    );
+
+    // j) Fase (à direita, abaixo do fio — empilhada sob a potência)
+    // Padrão NBR de referência: a fase (T/R/S/R+S+T) aparece abaixo da
+    // potência, na mesma coluna (mesmo X), não mais à esquerda/acima.
+    final String fLabel = _escFase(c.fase);
+    final String fColor = _faseColor(c.fase);
+    buf.writeln(
+      '<text x="${_f(potX)}" y="${_f(fy + faseYdeltaBelow)}" '
+      'text-anchor="middle" font-size="7" font-weight="bold" fill="$fColor">'
+      '$fLabel</text>',
     );
 
     // m) Descrição à direita (após o fim do fio)
@@ -703,8 +708,11 @@ class UnifilarSvgBuilder {
   //   Trifásico (3 polos): 3 traços retos verticais em x=273.38/277.47/281.55
   //   Mono/Bifásico (1-2 polos): 1 traço c/ tampa horizontal no topo (x=268.88)
   //                              + 1 traço reto (x=273.38)
+  //   Em TODOS os casos (confirmado por inspeção pixel-a-pixel da imagem de
+  //   referência, presente com e sem DR): traço extra em "T" (tampa curta +
+  //   traço vertical curto) indicando o condutor de aterramento/neutro.
   // ─────────────────────────────────────────────────────────────────────────────
-  void _buildTracosCabo(StringBuffer buf, double fy, int polos, bool utilizaDR) {
+  void _buildTracosCabo(StringBuffer buf, double fy, int polos) {
     final double yTop = fy - caboTracoYTop;
     final double yBot = fy + caboTracoYBot;
     const s = 'stroke="#000" stroke-width="0.46"';
@@ -730,19 +738,18 @@ class UnifilarSvgBuilder {
       );
     }
 
-    // Traço extra em "T" (tampa + traço curto) — indica neutro passando pelo DR
-    if (utilizaDR) {
-      final double drCapX0 = caboTraco1X + caboTracoDrCapX0;
-      final double drCapX1 = caboTraco1X + caboTracoDrCapX1;
-      final double drVX = caboTraco1X + caboTracoDrVX;
-      final double drYBot = fy + caboTracoDrYBot;
-      buf.writeln(
-        '<line x1="${_f(drCapX0)}" y1="${_f(yTop)}" x2="${_f(drCapX1)}" y2="${_f(yTop)}" $s/>',
-      );
-      buf.writeln(
-        '<line x1="${_f(drVX)}" y1="${_f(yTop)}" x2="${_f(drVX)}" y2="${_f(drYBot)}" $s/>',
-      );
-    }
+    // Traço extra em "T" (tampa + traço curto) — SEMPRE presente, indica o
+    // condutor de aterramento/neutro (independente de o circuito usar DR).
+    final double drCapX0 = caboTraco1X + caboTracoDrCapX0;
+    final double drCapX1 = caboTraco1X + caboTracoDrCapX1;
+    final double drVX = caboTraco1X + caboTracoDrVX;
+    final double drYBot = fy + caboTracoDrYBot;
+    buf.writeln(
+      '<line x1="${_f(drCapX0)}" y1="${_f(yTop)}" x2="${_f(drCapX1)}" y2="${_f(yTop)}" $s/>',
+    );
+    buf.writeln(
+      '<line x1="${_f(drVX)}" y1="${_f(yTop)}" x2="${_f(drVX)}" y2="${_f(drYBot)}" $s/>',
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -910,9 +917,6 @@ class UnifilarSvgBuilder {
 
   /// Formata double com 2 casas decimais (sem zeros desnecessários para o SVG)
   String _f(double v) => v.toStringAsFixed(2);
-
-  /// ² em superscript SVG
-  String _sup2() => '&#178;';
 
   /// Escapa o texto para XML (sem diacríticos — compatibilidade com pw.SvgImage)
   String _esc(String s) {
