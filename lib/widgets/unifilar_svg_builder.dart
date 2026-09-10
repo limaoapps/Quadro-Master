@@ -230,7 +230,19 @@ class UnifilarSvgBuilder {
         ? y0Circ + (n - 1) * stepY * sc
         : y0Circ;
     // Bottom do barramento e da caixa
-    final double barrY1 = yLast + 20.0;
+    // IMPORTANTE: o barramento (e a caixa tracejada) precisam se estender
+    // pelo menos até a altura da entrada geral (geralY) — caso contrário,
+    // quando há poucos circuitos, o fio de entrada geral (disjuntor
+    // principal) fica desenhado abaixo do fim do barramento, totalmente
+    // desconectado dele (bug visual: fio "flutuando" fora da caixa).
+    // Também considera o ramal do DPS (se houver), que se estende ainda
+    // mais abaixo de geralY, garantindo que fique dentro da caixa.
+    final double geralBottomExtent = d.temDPS
+        ? geralY + dpsAterY3delta + 6.0
+        : geralY + 20.0;
+    final double barrY1 = (yLast + 20.0) > geralBottomExtent
+        ? (yLast + 20.0)
+        : geralBottomExtent;
     final double caixaB  = barrY1 + 30.0;
 
     final buf = StringBuffer();
